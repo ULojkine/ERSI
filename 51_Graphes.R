@@ -5,7 +5,7 @@ hauteur <- largeur*0.57
 # IMPORTATION
 comparaison_entre_sexes <- readRDS("interm/comparaison_entre_sexes.rds") %>% filter(periode == "2017-2019") 
 comparaison_entre_PCS_periodes <- readRDS("interm/comparaison_entre_PCS.rds")
-comparaison_entre_PCS <- comparaison_entre_PCS %>% filter(periode == "2017-2019") 
+comparaison_entre_PCS <- comparaison_entre_PCS_periodes %>% filter(periode == "2017-2019") 
 comparaison_entre_diplomes_periodes <- readRDS("interm/comparaison_entre_diplomes.rds")
 comparaison_entre_diplomes <- comparaison_entre_diplomes_periodes %>% filter(periode == "2017-2019")
 comparaison_entre_periodes_par_PCS <- readRDS("interm/comparaison_entre_periodes_par_PCS.rds") %>% filter(periode == "2017-2019")
@@ -106,6 +106,7 @@ diff_evsi_long <- comparaison_entre_PCS %>%
     scale_fill_brewer(breaks=c("diff_evsi_sante","diff_evsi_survie","diff_evsi_residu"),
                       labels=c("expliqué par la santé","expliqué par la mortalité","Résidu"),
                       palette="YlOrBr", direction=-1)+
+    scale_y_continuous(breaks=c(-15:5))+
     geom_point(data = filter(comparaison_entre_PCS, PCS != "Ensemble"), aes(x = PCS, y = diff_evsi), color="black", size=2)+
     facet_wrap(~Sexe)
 ) %>%
@@ -121,10 +122,10 @@ diff_er_long <- comparaison_entre_PCS %>%
     geom_bar(data = diff_er_long, aes(x = PCS, y=valeur, fill=factor(composant, levels=c("diff_er_residu", "diff_er_survie","diff_er_retraite"))),
              position="stack", stat="identity")+
     labs(x="PCS", y="Années",fill="Espérance de retraite, \n écart avec les cadres...")+
-
     scale_fill_brewer(breaks=c("diff_er_survie","diff_er_retraite","diff_er_residu"),
                       labels=c("expliqué par la mortalité","expliqué par la retraite","Résidu"),
                       palette="YlOrBr", direction=-1)+
+    scale_y_continuous(breaks=c(-15:5))+
     geom_point(data = filter(comparaison_entre_PCS, PCS != "Ensemble"), aes(x = PCS, y = diff_er), color="black", size=2)+
     facet_wrap(~Sexe)
 ) %>%
@@ -144,6 +145,7 @@ diff_ersi_long <- comparaison_entre_PCS %>%
                       labels=c("expliqué par la mortalité","expliqué par la santé","expliqué par la retraite","Résidu"),
                       palette="YlOrBr", direction=-1)+
     geom_point(data = filter(comparaison_entre_PCS, PCS != "Ensemble"), aes(x = PCS, y = diff_ersi), color="black", size=2)+
+    scale_y_continuous(breaks=c(-15:5))+
     facet_wrap(~Sexe)
 ) %>%
   ggsave("graphes/diff_ERSI_entre_PCS.png",plot=., width=largeur, height=hauteur, unit="cm")
@@ -243,6 +245,7 @@ diff_evsi_long <- comparaison_entre_diplomes %>%
                       labels=c("expliqué par la santé","expliqué par la mortalité","Résidu"),
                       palette="YlOrBr", direction=-1)+
     geom_point(data = filter(comparaison_entre_diplomes, diplome != "Ensemble"), aes(x = diplome, y = diff_evsi), color="black", size=2)+
+    scale_y_continuous(breaks=c(-15:5))+
     facet_wrap(~Sexe)
 ) %>%
   ggsave("graphes/diff_EVSI_entre_diplomes.png",plot=., width=largeur, height=hauteur, unit="cm")
@@ -261,6 +264,7 @@ diff_er_long <- comparaison_entre_diplomes %>%
                       labels=c("expliqué par la mortalité","expliqué par la retraite","Résidu"),
                       palette="YlOrBr", direction=-1)+
     geom_point(data = filter(comparaison_entre_diplomes, diplome != "Ensemble"), aes(x = diplome, y = diff_er), color="black", size=2)+
+    scale_y_continuous(breaks=c(-15:5))+
     facet_wrap(~Sexe)
 ) %>%
   ggsave("graphes/diff_ER_entre_diplomes.png",plot=., width=largeur, height=hauteur, unit="cm")
@@ -279,6 +283,7 @@ diff_ersi_long <- comparaison_entre_diplomes %>%
                       labels=c("expliqué par la mortalité","expliqué par la santé","expliqué par la retraite","Résidu"),
                       palette="YlOrBr", direction=-1)+
     geom_point(data = filter(comparaison_entre_diplomes, diplome != "Ensemble"), aes(x = diplome, y = diff_ersi), color="black", size=2)+
+    scale_y_continuous(breaks=c(-15:5))+
     facet_wrap(~Sexe)
 ) %>%
   ggsave("graphes/diff_ERSI_entre_diplomes.png",plot=., width=largeur, height=hauteur, unit="cm")
@@ -347,7 +352,7 @@ gradients_PCS_periodes <- gradients_PCS %>%
   mutate(
     dimension = factor(dimension,
                        levels=c("diff_ev","diff_evsi","diff_er","diff_ersi"),
-                       labels=c("Espérance de vie", "EVSI","Espérance de retraite","ERSI"))
+                       labels=c("Espérance de vie", "Espérance de vie \n sans incapacité","Espérance de retraite","Espérance de retraite \n sans incapacité"))
   )
 
 (ggplot(data = gradients_PCS_periodes, aes(x=PCS, y=valeur, color=periode, group=periode))+
@@ -356,8 +361,10 @@ gradients_PCS_periodes <- gradients_PCS %>%
   labs(x="PCS", y = "Années", color="Période")+
   scale_color_brewer(palette = "Paired")+
   scale_y_continuous(breaks=c(-10:0))+
-  facet_grid(Sexe ~ dimension))%>%
-  ggsave("graphes/gradients_PCS_periodes.png",plot=., width=largeur, height=hauteur, unit="cm")
+  facet_grid(Sexe ~ dimension)+
+  theme(legend.position="bottom")
+  )%>%
+  ggsave("graphes/gradients_PCS_periodes.png",plot=., width=largeur*1.5, height=hauteur*1.5, unit="cm")
 
 # ÉVOLUTION DES GRADIENTS selon le diplôme ENTRE PÉRIODES
 gradients_diplome_periodes <- gradients_diplome %>%
@@ -365,7 +372,7 @@ gradients_diplome_periodes <- gradients_diplome %>%
   mutate(
     dimension = factor(dimension,
                        levels=c("diff_ev","diff_evsi","diff_er","diff_ersi"),
-                       labels=c("Espérance de vie", "EVSI","Espérance de retraite","Espérance de retraite \n sans incapacité"))
+                       labels=c("Espérance de vie", "Espérance de vie \n sans incapacité","Espérance de retraite","Espérance de retraite \n sans incapacité"))
   )
 
 (ggplot(data = gradients_diplome_periodes, aes(x=diplome, y=valeur, color=periode, group=periode))+
@@ -373,9 +380,10 @@ gradients_diplome_periodes <- gradients_diplome %>%
     geom_line()+
     labs(x="Diplôme", y = "Années", color="Période")+
     scale_color_brewer(palette = "Paired")+
-    scale_y_continuous(breaks=c(-6:0))+
-    facet_grid(Sexe ~ dimension))%>%
-  ggsave("graphes/gradients_diplome_periodes.png",plot=., width=largeur, height=hauteur, unit="cm")
+    scale_y_continuous(breaks=c(-10:0))+
+    facet_grid(Sexe ~ dimension)+
+    theme(legend.position="bottom"))%>%
+  ggsave("graphes/gradients_diplome_periodes.png",plot=., width=largeur*1.5, height=hauteur*1.5, unit="cm")
 
 
 
@@ -580,13 +588,28 @@ diff_er_SL_long <- comparaison_entre_annees %>% select(AENQ, Sexe, diff_er_survi
     geom_col(data = diff_er_SL_long, aes(x = AENQ, y = valeur, fill = factor(composant, levels=c("diff_er_residu","diff_er_survie","diff_er_retraite"))), position = "stack") +  # Barres empilées
     facet_wrap(~Sexe) +
     geom_line(data = comparaison_entre_annees, aes(x = AENQ, y = diff_er), color = "black", alpha=0.8) +  # Point noir représentant la somme
+    geom_point(data=filter(comparaison_entre_annees, AENQ %in% c(2008,2019)),
+               aes(x = AENQ, y=diff_er))+
+    geom_label(
+      data = filter(comparaison_entre_annees, AENQ == 2008),
+      aes(x = AENQ, y = diff_er, 
+          label = paste("ER en 2008\n",round(er,digits=1), "ans")), 
+      color = "black", label.size=0.2, fill = "white", size = 2.5, nudge_y = 0.3, nudge_x = 0.9
+    ) +
+    geom_label(
+      data = filter(comparaison_entre_annees, AENQ == 2019),
+      aes(x = AENQ, y = diff_er, 
+          label = paste("ER en 2019\n",round(er,digits=1), "ans")), 
+      color = "black", label.size=0.2, fill = "white", size = 2.5, nudge_y = -0.25, nudge_x = -0.9
+    ) +
     labs(x = "Année",
-         y = "",
+         y = "Écart en années",
          fill = "Espérance de retraite, \n écart par rapport à 2008") +
     scale_fill_brewer(palette="Reds",
                       breaks=c("diff_er_survie","diff_er_retraite","diff_er_residu"),
                       labels = c("expliqué par la mortalité", "expliqué par la retraite", "Résidu"))+
     scale_x_continuous(breaks=seq(2008,2019,by=4))+
+    scale_y_continuous(breaks=seq(-2,1.5,by=0.5))+
     theme_minimal())%>%
   ggsave("graphes/diff_ER_SL.png",plot=., width=largeur, height=hauteur, unit="cm")
 
@@ -598,12 +621,27 @@ diff_ersi_SL_long <- comparaison_entre_annees %>% select(AENQ, Sexe, diff_ersi_s
     geom_col(data = diff_ersi_SL_long, aes(x = AENQ, y = valeur, fill = factor(composant, levels=c("diff_ersi_residu","diff_ersi_survie","diff_ersi_sante","diff_ersi_retraite"))), position = "stack") +  # Barres empilées
     facet_wrap(~Sexe) +
     geom_line(data = comparaison_entre_annees, aes(x = AENQ, y = diff_ersi), color = "black", alpha=0.8) +  # ligne noire représentant la somme
+    geom_point(data=filter(comparaison_entre_annees, AENQ %in% c(2008,2019)),
+               aes(x = AENQ, y=diff_ersi))+
+    geom_label(
+      data = filter(comparaison_entre_annees, AENQ == 2008),
+      aes(x = AENQ, y = diff_ersi, 
+          label = paste("ERSI en 2008\n",round(ersi,digits=1), "ans")), 
+      color = "black", label.size=0.2, fill = "white", size = 2.5, nudge_y = 0.3, nudge_x = 1.1
+    ) +
+    geom_label(
+      data = filter(comparaison_entre_annees, AENQ == 2019),
+      aes(x = AENQ, y = diff_ersi, 
+          label = paste("ERSI en 2019\n",round(ersi,digits=1), "ans")), 
+      color = "black", label.size=0.2, fill = "white", size = 2.5, nudge_y = 0.23, nudge_x = -1.1
+    ) +
     labs(x = "Année",
-         y = "",
+         y = "Écart en années",
          fill = "Espérance de retraite \n sans incapacité, \n écart par rapport à 2008") +
     scale_fill_brewer(palette="Reds",
                       breaks=c("diff_ersi_survie","diff_ersi_sante","diff_ersi_retraite","diff_ersi_residu"),
                       labels = c("expliqué par la mortalité","expliqué par la santé", "expliqué par la retraite", "Résidu"))+
     scale_x_continuous(breaks=seq(2008,2019,by=4))+
+    scale_y_continuous(breaks=seq(-1.5,1.5,by=0.5))+
     theme_minimal())%>%
   ggsave("graphes/diff_ERSI_SL.png",plot=., width=largeur, height=hauteur, unit="cm")

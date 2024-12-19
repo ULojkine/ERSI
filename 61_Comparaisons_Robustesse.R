@@ -1,6 +1,6 @@
 # Importation de nos données
-comparaison_entre_annees <- readRDS("interm/comparaison_entre_annees.rds")
-adultes_periodes <- readRDS("interm/adultes_periodes.rds")
+comparaison_entre_annees <- readRDS("./interm/comparaison_entre_annees.rds")
+adultes_periodes <- readRDS("./interm/adultes_periodes.rds")
 
 # De données annexes
 evsi_SL_DREES <- read_delim("data/EVSI_par_age_annee_DREES.csv", 
@@ -78,9 +78,6 @@ modele_lineaire <- function(type_limite1, sexe){
 }
 
 # Calcul des R2
-expand_grid(list("limite","limite_forte"),list("Hommes","Femmes"))%>%
-  lapply(summary(modele_lineaire(.)))
-
 grille_parametres <- expand_grid(type_limite = c("limite", "limite_forte"), sexe = c("Hommes", "Femmes"))
 
 resultats <- apply(grille_parametres, 1, function(x) { # Calcul des R²
@@ -105,7 +102,7 @@ prevalences_vqs_lin <- prevalences_vqs %>%
   facet_grid(Sexe ~ type_limite)+
   labs(x="Âge",y="Proportion",color="Prévalence d'incapacité \n en 2014 selon VQS")+
   scale_color_brewer(palette = "Paired", labels=c("proportion brute","lissage linéaire")))%>%
-  ggsave("graphes/fit_lineaire_VQS.png",plot=.,width=largeur, height=hauteur)
+  ggsave("graphes/fit_lineaire_VQS.png",plot=.,width=largeur, height=hauteur,unit="cm")
 
 # Fit linéaire SRCV femmes employées 2009-2013
 employees_agees <- filter(adultes_periodes, Sexe == "Femmes", PCS %in% c("Employés"), periode == "2009-2013", AGE >= 75, AGE <= 100)
@@ -144,3 +141,17 @@ employees_agees_grouped <- employees_agees_grouped %>%
   scale_color_brewer(palette="Paired", labels=c("proportion brute","lissage linéaire"))+
   facet_wrap(~type_limite))%>%
   ggsave("graphes/fit_lineaire_employees_SRCV.png",plot=., width=largeur, height=hauteur, unit="cm")
+
+## Zoom sur les femmes entre 70 et 79 ans ne se déclarant pas retraitées 
+list(c(2008:2010), c(2017:2019)) %>%
+  map(function(x){
+    df <- filter(adultes, AGE %in% c(70:79), AENQ %in% x)
+    femmes <- filter(df, Sexe == "Femmes")
+    hommes <- filter(df, Sexe == "Hommes")
+    print(paste("En ", paste(x, collapse="-"), " :"))
+    print(paste("Hommes non retraités entre 70 et 79 ans : ",
+                1 - weighted.mean(hommes$retraite, hommes$PB040)))
+    print(paste("Femmes non retraitées entre 70 et 79 ans : ",
+                1 - weighted.mean(femmes$retraite, femmes$PB040)))
+    print(paste("Femmes au foyer : ", weighted.mean(femmes$SITUA == 6, femmes$PB040)))
+  })

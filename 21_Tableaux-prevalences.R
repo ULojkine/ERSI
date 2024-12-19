@@ -143,6 +143,7 @@ prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_ensemble, 
   filter(!is.na(diplome))%>%
   arrange(periode, Sexe, diplome, AGE)
 
+saveRDS(adultes_periodes, "./interm/adultes_periodes.rds")
 saveRDS(prevalences_SL, "./interm/prevalences_SL.rds")
 saveRDS(prevalences_PCS, "./interm/prevalences_PCS.rds")
 saveRDS(prevalences_diplome, "./interm/prevalences_diplome.rds")
