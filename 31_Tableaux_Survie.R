@@ -105,26 +105,28 @@ survie_SL <- survie_SL %>%
 
 # Fusion avec les prévalences
 # On charge les données de limitations*retraite
-prevalences_PCS <- readRDS("./interm/prevalences_PCS.rds")
-prevalences_diplome <- readRDS("./interm/prevalences_diplome.rds")
-prevalences_SL <- readRDS("./interm/prevalences_SL.rds")
-
-prevalences_survie_PCS <- merge(prevalences_PCS,survie_PCS,by=c("periode","PCS","Sexe","AGE"))%>%
-  completer_colonnes%>%
-  arrange(periode, PCS, Sexe, AGE)
-
-prevalences_survie_diplome <- merge(prevalences_diplome,survie_diplome,by=c("periode","diplome","Sexe","AGE"))%>%
-  completer_colonnes%>%
-  arrange(periode, diplome, Sexe, AGE)
-
-prevalences_survie_SL <- merge(prevalences_SL,survie_SL,by=c("AENQ","Sexe","AGE"))%>%
-  completer_colonnes %>%
-  arrange(AENQ, Sexe, AGE)
-
-saveRDS(prevalences_survie_PCS,"interm/prevalences_survie_PCS.rds") # On sauve séparément en RDS pour garder le format factor
-saveRDS(prevalences_survie_diplome,"interm/prevalences_survie_diplome.rds")
-saveRDS(prevalences_survie_SL,"interm/prevalences_survie_SL.rds")
-
-write_csv(prevalences_survie_PCS,"sorties/prevalences_survie_PCS.csv")
-write_csv(prevalences_survie_diplome,"sorties/prevalences_survie_diplome.csv")
-write_csv(prevalences_survie_SL,"sorties/prevalences_survie_SL.csv")
+for(enquete in c("SRCV","enqEmploi")){
+  prevalences_PCS <- readRDS(paste0("./interm/prevalences_PCS_",enquete,".rds"))
+  prevalences_diplome <- readRDS(paste0("./interm/prevalences_diplome_",enquete,".rds"))
+  prevalences_SL <- readRDS(paste0("./interm/prevalences_SL_",enquete,".rds"))
+  
+  prevalences_survie_PCS <- merge(prevalences_PCS,survie_PCS,by=c("periode","PCS","Sexe","AGE"))%>%
+    completer_colonnes%>%
+    arrange(periode, PCS, Sexe, AGE)
+  
+  prevalences_survie_diplome <- merge(prevalences_diplome,survie_diplome,by=c("periode","diplome","Sexe","AGE"))%>%
+    completer_colonnes%>%
+    arrange(periode, diplome, Sexe, AGE)
+  
+  prevalences_survie_SL <- merge(prevalences_SL,survie_SL,by=c("AENQ","Sexe","AGE"))%>%
+    completer_colonnes %>%
+    arrange(AENQ, Sexe, AGE)
+  
+  saveRDS(prevalences_survie_PCS,paste0("interm/prevalences_survie_PCS_",enquete,".rds")) # On sauve séparément en RDS pour garder le format factor
+  saveRDS(prevalences_survie_diplome,paste0("interm/prevalences_survie_diplome_",enquete,".rds"))
+  saveRDS(prevalences_survie_SL,paste0("interm/prevalences_survie_SL_",enquete,".rds"))
+  
+  write_csv(prevalences_survie_PCS,paste0("sorties/prevalences_survie_PCS.csv"))
+  write_csv(prevalences_survie_diplome,paste0("sorties/prevalences_survie_diplome.csv"))
+  write_csv(prevalences_survie_SL,paste0("sorties/prevalences_survie_SL.csv"))
+}

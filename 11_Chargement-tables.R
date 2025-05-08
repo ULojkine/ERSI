@@ -1,3 +1,58 @@
+# Fonctions
+labellize <- function(x) {
+  l <- length(x)
+  paste(x[-l], x[-1]-1, sep="-")
+}
+
+# breaks_cat <- c(16, 25, 50, 55+5*(0:6), Inf)
+# breaks_qqual <- c(16, 20+5*(0:13), Inf)
+# breaks_qqual_regroupe <- c(16, 30, 40+5*(0:7), Inf)
+
+mise_en_forme <- function(individus){
+  individus %>%
+    filter(AGE >= 16) %>% 
+    mutate(
+      limitations = factor(recode(
+        DIM, `1` = "1 - Oui, fortement limité(e)",
+        `2` = "2 - Oui, limité(e), mais pas fortement",
+        `3` = "3 - Non, pas limité(e) du tout",
+        .default=NA_character_
+      )),
+      limite = DIM == 1 | DIM == 2,
+      limite_forte = DIM == 1,
+      # age_cat = cut(AGE, breaks = breaks_cat, labels=labellize(breaks_cat), right=FALSE),
+      # age_qqual = cut(AGE, breaks = breaks_qqual_regroupe, labels=labellize(breaks_qqual_regroupe), right=FALSE),
+      # age_qqual_nonregroupe = cut(AGE, breaks = breaks_qqual, labels=labellize(breaks_qqual), right=FALSE),
+      CS = substr(CS24, 1, 1),
+      CS = ifelse(CS == 7 | is.na(CS), substr(CS_ANTE, 1, 1), CS),
+      PCS = factor(recode(
+        CS,
+        `1` = "Agriculteurs",
+        `2` = "Artisans",
+        `3` = "Cadres",
+        `4` = "Prof inter",
+        `5` = "Employés",
+        `6` = "Ouvriers",
+        `7` = "Retraités",
+        `8` = "Inactifs",
+        .default = NA_character_
+      )),
+      diplome = ifelse(is.na(DIP11), DIP14, DIP11), # jusqu'à 2013, le diplôme est encodé en 14 catégories. le recodage qui suit fonctionne pour les deux encodages
+      diplome = factor(case_when(
+        diplome <= 33 ~ "Supérieur",
+        diplome %in% c(41:43) ~ "Bac",
+        diplome == 50 ~ "CAP",
+        diplome %in% c(60:70) ~ "Brevet",
+        diplome == 71 ~ "Sans",
+        .default = NA
+      )),
+      Sexe = fct_recode(factor(SEXE), Hommes = "1", Femmes = "2"),
+      retraite = SITUA == 5
+    ) %>%
+    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite"))
+}
+
+# SRCV 
 variables_a_retirer = c("PROPLOCA", "PY200G", "PY021N", "PY021G", "Z01Q0P",
                         "HANDICH", "HANDICG")
 
@@ -27,53 +82,49 @@ individus <- list(
   map(select, -any_of(variables_a_retirer)) %>% 
   bind_rows(.id="AENQ")
 
-labellize <- function(x) {
-  l <- length(x)
-  paste(x[-l], x[-1]-1, sep="-")
+adultes <- mise_en_forme(individus)
+saveRDS(adultes, "./interm/adultes_SRCV.rds")
+rm(individus)
+rm(adultes)
+gc()
+
+# Enquête Emploi
+variables_a_selectionner <- c("LIMACT","AG", "CSE", "CSA", "DIP11", "SEXE", "SP00", "EXTRIDF")
+
+individus <- NULL
+for(a in c(2013:2019)){
+  individus_a <- NULL
+  for(i in c(1:4)){
+    print(paste(a,i))
+    individus_a_i <- read_delim(paste0("data/EnqEmploi/indiv",(a-2000),i,".csv"), delim = ";", escape_double = FALSE, trim_ws = TRUE) %>%
+      select(any_of(variables_a_selectionner))
+    
+    gc()
+    
+    individus_a <- individus_a %>%
+      rbind(individus_a_i)
+  }
+  individus_a <- individus_a %>%
+    mutate(AENQ = a) %>%
+    filter(EXTRIDF > 0) # le poids EXTRDIF, qui ne concerne que certaines vagues où la question sur la limitatione est posée, est souvent NA ou nul
+  individus <- individus %>% rbind(individus_a)
 }
+rm(individus_a)
+rm(individus_a_i)
+gc()
 
-breaks_cat <- c(16, 25, 50, 55+5*(0:6), Inf)
-breaks_qqual <- c(16, 20+5*(0:13), Inf)
-breaks_qqual_regroupe <- c(16, 30, 40+5*(0:7), Inf)
-
-adultes <- individus %>%
-  filter(AGE >= 16) %>% 
+individus <- individus %>%
+  rename(
+    DIM = LIMACT,
+    AGE = AG,
+    CS24 = CSE,
+    CS_ANTE = CSA,
+    SITUA = SP00,
+    PB040 = EXTRIDF
+  ) %>%
   mutate(
-    limitations = factor(recode(
-      DIM, `1` = "1 - Oui, fortement limité(e)",
-      `2` = "2 - Oui, limité(e), mais pas fortement",
-      `3` = "3 - Non, pas limité(e) du tout"
-    )),
-    limite = DIM == 1 | DIM == 2,
-    limite_forte = DIM == 1,
-    age_cat = cut(AGE, breaks = breaks_cat, labels=labellize(breaks_cat), right=FALSE),
-    age_qqual = cut(AGE, breaks = breaks_qqual_regroupe, labels=labellize(breaks_qqual_regroupe), right=FALSE),
-    age_qqual_nonregroupe = cut(AGE, breaks = breaks_qqual, labels=labellize(breaks_qqual), right=FALSE),
-    CS = substr(CS24, 1, 1),
-    CS = ifelse(CS == 7, substr(CS_ANTE, 1, 1), CS),
-    PCS = factor(recode(
-      CS,
-      `1` = "Agriculteurs",
-      `2` = "Artisans",
-      `3` = "Cadres",
-      `4` = "Prof inter",
-      `5` = "Employés",
-      `6` = "Ouvriers",
-      `7` = "Retraités",
-      `8` = "Inactifs",
-      .default = NA_character_
-    )),
-    diplome = ifelse(is.na(DIP11), DIP14, DIP11), # jusqu'à 2013, le diplôme est encodé en 14 catégories. le recodage qui suit fonctionne pour les deux encodages
-    diplome = factor(case_when(
-        diplome <= 33 ~ "Supérieur",
-        diplome %in% c(41:43) ~ "Bac",
-        diplome == 50 ~ "CAP",
-        diplome %in% c(60:70) ~ "Brevet",
-        diplome == 71 ~ "Sans",
-        .default = NA
-    )),
-    Sexe = fct_recode(factor(SEXE), Hommes = "1", Femmes = "2"),
-    retraite = SITUA == 5
+    DIP14 = NA
   )
 
-saveRDS(adultes, "./interm/adultes.rds")
+adultes <- mise_en_forme(individus)
+saveRDS(adultes, "./interm/adultes_EnqEmploi.rds")

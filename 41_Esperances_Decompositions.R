@@ -101,119 +101,123 @@ calcul_esperances <- function(df, elements1, elements2){
 }
 
 # On importe les données
-prevalences_survie_PCS <- readRDS("./interm/prevalences_survie_PCS.rds")
-prevalences_survie_diplome <- readRDS("./interm/prevalences_survie_diplome.rds")
-prevalences_survie_SL <- readRDS("./interm/prevalences_survie_SL.rds")
-
-# On prépare les niveaux de factorisation
-sexe_levels <- c("Femmes","Hommes")
-periode_levels <- c("2009-2013","2017-2019")
-pcs_levels <- c("Cadres","Prof inter","Employés","Ouvriers","Ensemble")
-diplome_levels <- c("Supérieur","Bac","CAP","Brevet","Sans","Ensemble")
-
-factoriser <- function(df, colonnes){
-  if("sexe" %in% colonnes){
-    df <- mutate(df, Sexe = factor(Sexe, levels = sexe_levels))
+for(enquete in c("SRCV","enqEmploi")){
+  prevalences_survie_PCS <- readRDS(paste0("./interm/prevalences_survie_PCS_",enquete,".rds"))
+  prevalences_survie_diplome <- readRDS(paste0("./interm/prevalences_survie_diplome_",enquete,".rds"))
+  prevalences_survie_SL <- readRDS(paste0("./interm/prevalences_survie_SL_",enquete,".rds"))
+  
+  # On prépare les niveaux de factorisation
+  sexe_levels <- c("Femmes","Hommes")
+  periode_levels <- c("2009-2013","2017-2019")
+  pcs_levels <- c("Cadres","Prof inter","Employés","Ouvriers","Ensemble")
+  diplome_levels <- c("Supérieur","Bac","CAP","Brevet","Sans","Ensemble")
+  
+  factoriser <- function(df, colonnes){
+    if("sexe" %in% colonnes){
+      df <- mutate(df, Sexe = factor(Sexe, levels = sexe_levels))
+    }
+    if("periode" %in% colonnes){
+      df <- mutate(df, periode = factor(periode, levels = periode_levels))
+    }
+    if("PCS" %in% colonnes){
+      df <- mutate(df, PCS = factor(PCS, levels = pcs_levels))
+    }
+    if("diplome" %in% colonnes){
+      df <- mutate(df, diplome = factor(diplome, levels = diplome_levels))
+    }
+    return(df)
   }
-  if("periode" %in% colonnes){
-    df <- mutate(df, periode = factor(periode, levels = periode_levels))
-  }
-  if("PCS" %in% colonnes){
-    df <- mutate(df, PCS = factor(PCS, levels = pcs_levels))
-  }
-  if("diplome" %in% colonnes){
-    df <- mutate(df, diplome = factor(diplome, levels = diplome_levels))
-  }
-  return(df)
+  
+  ## COMPARAISON ENTRE SEXES POUR CHAQUE PÉRIODE
+  comparaison_entre_sexes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels) %>%
+    pmap_dfr(function(sexe, periode1){
+      p <- prevalences_survie_PCS %>% filter(periode == periode1, PCS == "Ensemble")
+      calcul_esperances(p, which(p$Sexe == sexe), which(p$Sexe == "Hommes"))%>%
+        mutate(periode = periode1,
+               Sexe = sexe)
+    }) %>%
+    select(periode, Sexe, everything()) %>%
+    factoriser(c("periode","Sexe"))%>%
+    remove_rownames()
+  
+  ## COMPARAISON ENTRE PCS POUR CHAQUE SEXE ET CHAQUE PÉRIODE
+  comparaison_entre_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
+                            pmap_dfr(function(sexe, periode1, pcs){
+                                         p <- prevalences_survie_PCS %>% filter(Sexe == sexe, periode == periode1)
+                                         calcul_esperances(p, which(p$PCS == pcs), which(p$PCS == "Cadres"))%>%
+                                           mutate(periode = periode1,
+                                                  Sexe = sexe,
+                                                  PCS = pcs)
+                            }) %>%
+    select(periode, Sexe, PCS, everything()) %>%
+    factoriser(c("periode","Sexe","PCS"))%>%
+    remove_rownames()
+  
+  ## COMPARAISON ENTRE DIPLÔMES POUR CHAQUE SEXE ET CHAQUE PÉRIODE
+  comparaison_entre_diplomes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 =diplome_levels) %>%
+    pmap_dfr(function(sexe, periode1, diplome1){
+      p <- prevalences_survie_diplome %>% filter(Sexe == sexe, periode == periode1)
+      calcul_esperances(p, which(p$diplome == diplome1), which(p$diplome == "Supérieur"))%>%
+        mutate(periode = periode1,
+               Sexe = sexe,
+               diplome = diplome1)
+    }) %>%
+    select(periode, Sexe, diplome, everything()) %>%
+    factoriser(c("periode","Sexe","diplome"))%>%
+    remove_rownames()
+  
+  ## COMPARAISON ENTRE PÉRIODES PAR PCS ET SEXE
+  comparaison_entre_periodes_par_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
+    pmap_dfr(function(sexe, periode1, pcs){
+      p <- prevalences_survie_PCS %>% filter(Sexe == sexe, PCS == pcs)
+      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
+        mutate(periode = periode1,
+               Sexe = sexe,
+               PCS = pcs)
+    }) %>%
+    select(periode, Sexe, PCS, everything()) %>%
+    factoriser(c("periode","Sexe","PCS"))%>%
+    remove_rownames()
+  
+  ## COMPARAISON ENTRE PÉRIODES PAR DIPLÔME ET SEXE
+  comparaison_entre_periodes_par_diplome <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 = diplome_levels) %>%
+    pmap_dfr(function(sexe, periode1, diplome1){
+      p <- prevalences_survie_diplome %>% filter(Sexe == sexe, diplome == diplome1)
+      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
+        mutate(periode = periode1,
+               Sexe = sexe,
+               diplome = diplome1)
+    }) %>%
+    select(periode, Sexe, diplome, everything()) %>%
+    factoriser(c("periode","Sexe","diplome"))%>%
+    remove_rownames()
+  
+  ## COMPARAISON ENTRE ANNÉES (SÉRIE LONGUE), PAR SEXE
+  annee_min <- case_when(enquete == "SRCV" ~ 2008,
+                         enquete == "enqEmploi" ~ 2013) # La série SRCV remonte jusqu'à 2008, mais EE seulement jusqu'à 2013
+  comparaison_entre_annees <- expand_grid(sexe = sexe_levels, annee = c(annee_min:2019)) %>%
+                            pmap_dfr( function(sexe, annee){
+                              p <- prevalences_survie_SL %>% filter(Sexe == sexe)
+                              calcul_esperances(p, which(p$AENQ == annee), which(p$AENQ == annee_min))%>%
+                                mutate(AENQ = annee,
+                                       Sexe = sexe)
+                            }) %>%
+    select(AENQ, Sexe, everything()) %>%
+    factoriser(c("Sexe"))%>%
+    remove_rownames()
+  
+  # Export
+  saveRDS(comparaison_entre_sexes, paste0("interm/comparaison_entre_sexes_",enquete,".rds"))
+  saveRDS(comparaison_entre_PCS, paste0("interm/comparaison_entre_PCS_",enquete,".rds"))
+  saveRDS(comparaison_entre_diplomes, paste0("interm/comparaison_entre_diplomes_",enquete,".rds"))
+  saveRDS(comparaison_entre_periodes_par_PCS, paste0("interm/comparaison_entre_periodes_par_PCS_",enquete,".rds"))
+  saveRDS(comparaison_entre_periodes_par_diplome, paste0("interm/comparaison_entre_periodes_par_diplome_",enquete,".rds"))
+  saveRDS(comparaison_entre_annees, paste0("interm/comparaison_entre_annees_",enquete,".rds"))
+  
+  write_csv(comparaison_entre_sexes, paste0("sorties/comparaison_entre_sexes_",enquete,".csv"))
+  write_csv(comparaison_entre_PCS, paste0("sorties/comparaison_entre_PCS_",enquete,".csv"))
+  write_csv(comparaison_entre_diplomes, paste0("sorties/comparaison_entre_diplomes_",enquete,".csv"))
+  write_csv(comparaison_entre_periodes_par_PCS, paste0("sorties/comparaison_entre_periodes_par_PCS_",enquete,".csv"))
+  write_csv(comparaison_entre_periodes_par_diplome, paste0("sorties/comparaison_entre_periodes_par_diplome_",enquete,".csv"))
+  write_csv(comparaison_entre_annees, paste0("sorties/comparaison_entre_annees_",enquete,".csv"))
 }
-
-## COMPARAISON ENTRE SEXES POUR CHAQUE PÉRIODE
-comparaison_entre_sexes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels) %>%
-  pmap_dfr(function(sexe, periode1){
-    p <- prevalences_survie_PCS %>% filter(periode == periode1, PCS == "Ensemble")
-    calcul_esperances(p, which(p$Sexe == sexe), which(p$Sexe == "Hommes"))%>%
-      mutate(periode = periode1,
-             Sexe = sexe)
-  }) %>%
-  select(periode, Sexe, everything()) %>%
-  factoriser(c("periode","Sexe"))%>%
-  remove_rownames()
-
-## COMPARAISON ENTRE PCS POUR CHAQUE SEXE ET CHAQUE PÉRIODE
-comparaison_entre_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
-                          pmap_dfr(function(sexe, periode1, pcs){
-                                       p <- prevalences_survie_PCS %>% filter(Sexe == sexe, periode == periode1)
-                                       calcul_esperances(p, which(p$PCS == pcs), which(p$PCS == "Cadres"))%>%
-                                         mutate(periode = periode1,
-                                                Sexe = sexe,
-                                                PCS = pcs)
-                          }) %>%
-  select(periode, Sexe, PCS, everything()) %>%
-  factoriser(c("periode","Sexe","PCS"))%>%
-  remove_rownames()
-
-## COMPARAISON ENTRE DIPLÔMES POUR CHAQUE SEXE ET CHAQUE PÉRIODE
-comparaison_entre_diplomes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 =diplome_levels) %>%
-  pmap_dfr(function(sexe, periode1, diplome1){
-    p <- prevalences_survie_diplome %>% filter(Sexe == sexe, periode == periode1)
-    calcul_esperances(p, which(p$diplome == diplome1), which(p$diplome == "Supérieur"))%>%
-      mutate(periode = periode1,
-             Sexe = sexe,
-             diplome = diplome1)
-  }) %>%
-  select(periode, Sexe, diplome, everything()) %>%
-  factoriser(c("periode","Sexe","diplome"))%>%
-  remove_rownames()
-
-## COMPARAISON ENTRE PÉRIODES PAR PCS ET SEXE
-comparaison_entre_periodes_par_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
-  pmap_dfr(function(sexe, periode1, pcs){
-    p <- prevalences_survie_PCS %>% filter(Sexe == sexe, PCS == pcs)
-    calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
-      mutate(periode = periode1,
-             Sexe = sexe,
-             PCS = pcs)
-  }) %>%
-  select(periode, Sexe, PCS, everything()) %>%
-  factoriser(c("periode","Sexe","PCS"))%>%
-  remove_rownames()
-
-## COMPARAISON ENTRE PÉRIODES PAR DIPLÔME ET SEXE
-comparaison_entre_periodes_par_diplome <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 = diplome_levels) %>%
-  pmap_dfr(function(sexe, periode1, diplome1){
-    p <- prevalences_survie_diplome %>% filter(Sexe == sexe, diplome == diplome1)
-    calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
-      mutate(periode = periode1,
-             Sexe = sexe,
-             diplome = diplome1)
-  }) %>%
-  select(periode, Sexe, diplome, everything()) %>%
-  factoriser(c("periode","Sexe","diplome"))%>%
-  remove_rownames()
-
-## COMPARAISON ENTRE ANNÉES (SÉRIE LONGUE), PAR SEXE
-comparaison_entre_annees <- expand_grid(sexe = sexe_levels, annee = c(2008:2019)) %>%
-                          pmap_dfr( function(sexe, annee){
-                            p <- prevalences_survie_SL %>% filter(Sexe == sexe)
-                            calcul_esperances(p, which(p$AENQ == annee), which(p$AENQ == 2008))%>%
-                              mutate(AENQ = annee,
-                                     Sexe = sexe)
-                          }) %>%
-  select(AENQ, Sexe, everything()) %>%
-  factoriser(c("Sexe"))%>%
-  remove_rownames()
-
-# Export
-saveRDS(comparaison_entre_sexes, "interm/comparaison_entre_sexes.rds")
-saveRDS(comparaison_entre_PCS, "interm/comparaison_entre_PCS.rds")
-saveRDS(comparaison_entre_diplomes, "interm/comparaison_entre_diplomes.rds")
-saveRDS(comparaison_entre_periodes_par_PCS, "interm/comparaison_entre_periodes_par_PCS.rds")
-saveRDS(comparaison_entre_periodes_par_diplome, "interm/comparaison_entre_periodes_par_diplome.rds")
-saveRDS(comparaison_entre_annees, "interm/comparaison_entre_annees.rds")
-
-write_csv(comparaison_entre_sexes, "sorties/comparaison_entre_sexes.csv")
-write_csv(comparaison_entre_PCS, "sorties/comparaison_entre_PCS.csv")
-write_csv(comparaison_entre_diplomes, "sorties/comparaison_entre_diplomes.csv")
-write_csv(comparaison_entre_periodes_par_PCS, "sorties/comparaison_entre_periodes_par_PCS.csv")
-write_csv(comparaison_entre_periodes_par_diplome, "sorties/comparaison_entre_periodes_par_diplome.csv")
-write_csv(comparaison_entre_annees, "sorties/comparaison_entre_annees.csv")

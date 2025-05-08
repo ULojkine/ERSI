@@ -1,5 +1,4 @@
-adultes <- readRDS("./interm/adultes.rds")
-
+# Fonctions
 # Calcul de la prévalence moyenne par âge au sein d'une catégorie ... par moyenne glissante
 prevalences_moyennes <- function(donnees, age, ...) {
   donnees %>% 
@@ -43,108 +42,116 @@ prevalences_lineaires <- function(donnees){
     )
 }
 
-# SÉRIE LONGUE PAR SEXE & ANNÉE, LISSAGE LINÉAIRE
-# On calcule les prévalences pour les âges en dessous de 75 ans par moyenne glissante sur 5 ans
-prevalences_SL <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes, age = ., Sexe, AENQ) )
+# Calcul des prévalences pour chaque source
+for(enquete in c("SRCV","enqEmploi")){
+  print(enquete)
+  adultes <- readRDS(paste0("./interm/adultes_",enquete,".rds"))
+  
+  
+  # SÉRIE LONGUE PAR SEXE & ANNÉE, LISSAGE LINÉAIRE
+  # On calcule les prévalences pour les âges en dessous de 75 ans par moyenne glissante sur 5 ans
+  prevalences_SL <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes, age = ., Sexe, AENQ) )
+  
+  #Au-dessus de 75 ans, on procède par interpolation linéaire dans la catégorie
+  prevalences_SL_vieux <- adultes %>%
+    group_by(Sexe, AENQ) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup()
+  
+  prevalences_SL <- rbind(prevalences_SL, prevalences_SL_vieux) %>%
+    arrange(AENQ, Sexe, AGE)
+  
+  # TABLE PAR PCS, PERIODE, LISSAGE LINÉAIRE
+  adultes_periodes <- adultes %>%
+    filter(AENQ %in% c(2009:2013, 2017:2019)) %>% # on garde les 2 périodes pour lesquelles on a des données de mortalité par PCS et par diplôme
+    mutate(
+      periode = case_when(
+        AENQ %in% c(2009:2013) ~ "2009-2013",
+        AENQ %in% c(2017:2019) ~ "2017-2019"
+      )
+    ) %>%
+    group_by(AENQ) %>%
+    mutate(
+      PB040 = PB040/sum(PB040, na.rm=TRUE)*1000 #On renormalise les poids dans chaque année, de sorte que le total des observations de chaque année compte autant qu'une autre (attention, cela signifie qu'en moyenne, les observations d'une année avec plus d'obs. comptent un peu moins) 
+    )%>%
+    ungroup()
+  
+  prevalences_PCS <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")),
+                                                             age = ., Sexe, PCS, periode) )
+  
+  prevalences_PCS_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
+                                                                      age = ., Sexe, periode) ) %>%
+    mutate(PCS = "Ensemble")
+  
+  # Les agriculteurs et les artisans ne sont pas assez nombreux, on regroupe les deux sexes
+  prevalences_PCS_agriculteurs_artisans <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")),
+                                                                                   age = ., PCS, periode) ) %>%
+    mutate(Sexe = "Ensemble")
+  
+  prevalences_PCS_vieux <- adultes_periodes %>%
+    filter(PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")) %>%
+    group_by(Sexe, PCS, periode) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup()
+  
+  prevalences_PCS_vieux_ensemble <- adultes_periodes %>%
+    group_by(Sexe, periode) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup() %>%
+    mutate(PCS = "Ensemble")
+  
+  prevalences_PCS_vieux_agriculteurs_artisans <- adultes_periodes %>%
+    filter(PCS %in% c("Agriculteurs","Artisans")) %>%
+    group_by(PCS, periode) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup() %>%
+    mutate(Sexe = "Ensemble")
+  
+  prevalences_PCS <- rbind(prevalences_PCS, prevalences_PCS_ensemble, prevalences_PCS_agriculteurs_artisans, prevalences_PCS_vieux, prevalences_PCS_vieux_ensemble, prevalences_PCS_vieux_agriculteurs_artisans) %>%
+    arrange(periode, Sexe, PCS, AGE)
+  
 
-#Au-dessus de 75 ans, on procède par interpolation linéaire dans la catégorie
-prevalences_SL_vieux <- adultes %>%
-  group_by(Sexe, AENQ) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup()
-
-prevalences_SL <- rbind(prevalences_SL, prevalences_SL_vieux) %>%
-  arrange(AENQ, Sexe, AGE)
-
-# TABLE PAR PCS, PERIODE, LISSAGE LINÉAIRE
-adultes_periodes <- adultes %>%
-  filter(AENQ %in% c(2009:2013, 2017:2019)) %>% # on garde les 2 périodes pour lesquelles on a des données de mortalité par PCS et par diplôme
-  mutate(
-    periode = case_when(
-      AENQ %in% c(2009:2013) ~ "2009-2013",
-      AENQ %in% c(2017:2019) ~ "2017-2019"
-    )
-  ) %>%
-  group_by(AENQ) %>%
-  mutate(
-    PB040 = PB040/sum(PB040, na.rm=TRUE)*1000 #On renormalise les poids dans chaque année, de sorte que le total des observations de chaque année compte autant qu'une autre (attention, cela signifie qu'en moyenne, les observations d'une année avec plus d'obs. comptent un peu moins) 
-  )%>%
-  ungroup()
-
-prevalences_PCS <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")),
-                                                           age = ., Sexe, PCS, periode) )
-
-prevalences_PCS_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
-                                                                    age = ., Sexe, periode) ) %>%
-  mutate(PCS = "Ensemble")
-
-# Les agriculteurs et les artisans ne sont pas assez nombreux, on regroupe les deux sexes
-prevalences_PCS_agriculteurs_artisans <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")),
-                                                                                 age = ., PCS, periode) ) %>%
-  mutate(Sexe = "Ensemble")
-
-prevalences_PCS_vieux <- adultes_periodes %>%
-  filter(PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")) %>%
-  group_by(Sexe, PCS, periode) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup()
-
-prevalences_PCS_vieux_ensemble <- adultes_periodes %>%
-  group_by(Sexe, periode) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup() %>%
-  mutate(PCS = "Ensemble")
-
-prevalences_PCS_vieux_agriculteurs_artisans <- adultes_periodes %>%
-  filter(PCS %in% c("Agriculteurs","Artisans")) %>%
-  group_by(PCS, periode) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup() %>%
-  mutate(Sexe = "Ensemble")
-
-
-prevalences_PCS <- rbind(prevalences_PCS, prevalences_PCS_ensemble, prevalences_PCS_agriculteurs_artisans, prevalences_PCS_vieux, prevalences_PCS_vieux_ensemble, prevalences_PCS_vieux_agriculteurs_artisans) %>%
-  arrange(periode, Sexe, PCS, AGE)
-
-# ggplot(prevalences_PCS, aes(x = AGE, y = retraite_limite + non_retraite_limite,color=periode))+geom_line()+facet_grid(PCS~Sexe)
-
-# TABLE PAR DIPLÔME, PERIODE, LISSAGE LINÉAIRE
-prevalences_diplome <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes, age = ., Sexe, diplome, periode) )
-
-prevalences_diplome_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
-                                                                    age = ., Sexe, periode) ) %>%
-  mutate(diplome = "Ensemble")
-
-
-prevalences_diplome_vieux <- adultes_periodes %>%
-  group_by(Sexe, diplome, periode) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup()
-
-prevalences_diplome_vieux_ensemble <- adultes_periodes %>%
-  group_by(Sexe, periode) %>%
-  do({
-    prevalences_lineaires(.)
-  }) %>%
-  ungroup() %>%
-  mutate(diplome = "Ensemble")
-
-prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_ensemble, prevalences_diplome_vieux, prevalences_diplome_vieux_ensemble) %>%
-  filter(!is.na(diplome))%>%
-  arrange(periode, Sexe, diplome, AGE)
-
-saveRDS(adultes_periodes, "./interm/adultes_periodes.rds")
-saveRDS(prevalences_SL, "./interm/prevalences_SL.rds")
-saveRDS(prevalences_PCS, "./interm/prevalences_PCS.rds")
-saveRDS(prevalences_diplome, "./interm/prevalences_diplome.rds")
-# ggplot(prevalences_diplome, aes(x = AGE, y = retraite_limite + non_retraite_limite,color=periode))+geom_line()+facet_grid(diplome~Sexe)
+  # TABLE PAR DIPLÔME, PERIODE, LISSAGE LINÉAIRE
+  prevalences_diplome <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes, age = ., Sexe, diplome, periode) )
+  
+  prevalences_diplome_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
+                                                                      age = ., Sexe, periode) ) %>%
+    mutate(diplome = "Ensemble")
+  
+  print("Prévalences diplôme vieux...")
+  prevalences_diplome_vieux <- adultes_periodes %>%
+    filter(!is.na(diplome)) %>%
+    group_by(Sexe, diplome, periode) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup()
+  
+  print("Prévalences diplôme vieux ensemble...")
+  prevalences_diplome_vieux_ensemble <- adultes_periodes %>%
+    group_by(Sexe, periode) %>%
+    do({
+      prevalences_lineaires(.)
+    }) %>%
+    ungroup() %>%
+    mutate(diplome = "Ensemble")
+  
+  prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_ensemble, prevalences_diplome_vieux, prevalences_diplome_vieux_ensemble) %>%
+    filter(!is.na(diplome))%>%
+    arrange(periode, Sexe, diplome, AGE)
+  
+  saveRDS(adultes_periodes, paste0("./interm/adultes_periodes_",enquete,".rds"))
+  saveRDS(prevalences_SL, paste0("./interm/prevalences_SL_",enquete,".rds"))
+  saveRDS(prevalences_PCS, paste0("./interm/prevalences_PCS_",enquete,".rds"))
+  saveRDS(prevalences_diplome, paste0("./interm/prevalences_diplome_",enquete,".rds"))
+  rm(adultes)
+  gc()
+}
