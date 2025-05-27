@@ -47,16 +47,19 @@ mise_en_forme <- function(individus){
         .default = NA
       )),
       Sexe = fct_recode(factor(SEXE), Hommes = "1", Femmes = "2"),
-      retraite = SITUA == 5
+      retraite_brut = SITUA == 5,
+      retraite = retraite_brut | AGE >= 70, # dans l'exercice principal, on considère tout le monde retraité à partir de 70 ans
+      retraite_revenu_i_brut = !is.na(RETRAITES_I),
+      retraite_revenu_i = retraite_revenu_i_brut | AGE >= 70
     ) %>%
-    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite"))
+    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite","retraite_revenu_i"))
 }
 
 # SRCV 
 variables_a_retirer = c("PROPLOCA", "PY200G", "PY021N", "PY021G", "Z01Q0P",
                         "HANDICH", "HANDICG")
 
-variables_a_selectionner <- c("DIM", "AGE", "CS24", "CS_ANTE", "DIP11","DIP14","SEXE", "SITUA", "PB040")
+variables_a_selectionner <- c("DIM", "AGE", "CS24", "CS_ANTE", "DIP11","DIP14","SEXE", "SITUA", "RETRAITES_I","RRET_a", "PB040")
 
 individus <- list(
   `2008` = "individus08_diff",
@@ -106,7 +109,7 @@ for(a in c(2013:2019)){
   }
   individus_a <- individus_a %>%
     mutate(AENQ = a) %>%
-    filter(EXTRIDF > 0) # le poids EXTRDIF, qui ne concerne que certaines vagues où la question sur la limitatione est posée, est souvent NA ou nul
+    filter(EXTRIDF > 0) # le poids EXTRDIF, qui ne concerne que certaines vagues où la question sur la limitation est posée, est souvent NA ou nul
   individus <- individus %>% rbind(individus_a)
 }
 rm(individus_a)
@@ -123,7 +126,9 @@ individus <- individus %>%
     PB040 = EXTRIDF
   ) %>%
   mutate(
-    DIP14 = NA
+    DIP14 = NA,
+    RETRAITES_I = NA,
+    RRET_a = NA
   )
 
 adultes <- mise_en_forme(individus)

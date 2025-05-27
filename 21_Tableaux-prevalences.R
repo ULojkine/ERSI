@@ -3,17 +3,27 @@
 prevalences_moyennes <- function(donnees, age, ...) {
   donnees %>% 
     filter(AGE >= age-2 & AGE <= age+2) %>% 
-    group_by(...) %>% 
+    group_by(...) %>%
+    rename(
+      retraite_indiv = retraite
+    ) %>%
     summarise(
       AGE = age,
-      non_retraite_non_limite = weighted_mean_na_rm(!retraite & !limite, PB040),
-      retraite_non_limite = weighted_mean_na_rm(retraite & !limite, PB040),
-      non_retraite_limite = weighted_mean_na_rm(!retraite & limite, PB040),
-      retraite_limite = weighted_mean_na_rm(retraite & limite, PB040),
-      non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite & !limite_forte, PB040),
-      retraite_non_limite_forte = weighted_mean_na_rm(retraite & !limite_forte, PB040),
-      non_retraite_limite_forte = weighted_mean_na_rm(!retraite & limite_forte, PB040),
-      retraite_limite_forte = weighted_mean_na_rm(retraite & limite_forte, PB040),
+      non_limite = weighted_mean_na_rm(!limite, PB040),
+      non_limite_var = weighted_var_na_rm(!limite, PB040),
+      non_limite_forte = weighted_mean_na_rm(!limite_forte, PB040),
+      non_limite_forte_var = weighted_var_na_rm(!limite_forte, PB040),
+      retraite = weighted_mean_na_rm(retraite_indiv, PB040),
+      retraite_var = weighted_var_na_rm(retraite_indiv,PB040),
+      retraite_non_limite = weighted_mean_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_var = weighted_var_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_forte = weighted_mean_na_rm(retraite_indiv & !limite_forte, PB040),
+      retraite_non_limite_forte_var = weighted_var_na_rm(retraite_indiv & !limite_forte, PB040),
+      non_retraite_non_limite = weighted_mean_na_rm(!retraite_indiv & !limite, PB040),
+      non_retraite_limite = weighted_mean_na_rm(!retraite_indiv & limite, PB040),
+      non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite_indiv & !limite_forte, PB040),
+      non_limite_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite/retraite),
+      non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
       .groups='drop'
     ) %>%
     ungroup()
@@ -28,25 +38,45 @@ modele_lineaire <- function(donnees, type_limite) {
 }
 
 # Application du modèle
-prevalences_lineaires <- function(donnees){
-  data.frame(AGE = c(75:100)) %>%
+prevalences_lineaires <- function(donnees) {
+  ages_avances <- data.frame(AGE = 75:100)
+  
+  # Prédictions avec erreur standard pour limite
+  pred_limite <- predict(modele_lineaire(donnees, "limite"), newdata = ages_avances, se.fit = TRUE)
+  
+  # Prédictions avec erreur standard pour limite_forte
+  pred_limite_forte <- predict(modele_lineaire(donnees, "limite_forte"), newdata = ages_avances, se.fit = TRUE)
+  
+  # Calcul des valeurs prédites et variances
+  ages_avances %>%
     mutate(
-      retraite_limite = pmin(1, predict(modele_lineaire(donnees, "limite"), newdata = .)),  # Prédire les prévalences, en imposant un max de 1
-      retraite_limite_forte = pmin(1, predict(modele_lineaire(donnees, "limite_forte"), newdata = .)),
-      retraite_non_limite = 1 - retraite_limite,
-      retraite_non_limite_forte = 1 - retraite_limite_forte,
-      non_retraite_non_limite = 0, # On suppose que tout le monde est à la retraite aux âges avancés
+      non_limite = 1 - pmin(1, pred_limite$fit),
+      non_limite_var = pred_limite$se.fit^2,
+      non_limite_forte = 1 - pmin(1, pred_limite_forte$fit),
+      non_limite_forte_var = pred_limite_forte$se.fit^2,
+      retraite = 1,
+      retraite_var = 0,
+      retraite_non_limite = non_limite,
+      retraite_non_limite_var = non_limite_var,
+      retraite_non_limite_forte = non_limite_forte,
+      retraite_non_limite_forte_var = non_limite_forte_var,
+      non_retraite_non_limite = 0,
       non_retraite_limite = 0,
       non_retraite_non_limite_forte = 0,
-      non_retraite_limite_forte = 0
+      non_limite_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite/retraite),
+      non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
     )
 }
 
 # Calcul des prévalences pour chaque source
-for(enquete in c("SRCV","enqEmploi")){
-  print(enquete)
+
+for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+  print(variante)
+  enquete <- ifelse(startsWith(variante, "SRCV"), "SRCV","enqEmploi")
   adultes <- readRDS(paste0("./interm/adultes_",enquete,".rds"))
-  
+  if(endsWith(variante,"revenu")){  # variante où la retraite est définie par le fait de toucher une pension en t-1 et non de manière déclarative
+      adultes <- mutate(adultes, retraite = retraite_revenu_i)
+  }
   
   # SÉRIE LONGUE PAR SEXE & ANNÉE, LISSAGE LINÉAIRE
   # On calcule les prévalences pour les âges en dessous de 75 ans par moyenne glissante sur 5 ans
@@ -126,7 +156,6 @@ for(enquete in c("SRCV","enqEmploi")){
                                                                       age = ., Sexe, periode) ) %>%
     mutate(diplome = "Ensemble")
   
-  print("Prévalences diplôme vieux...")
   prevalences_diplome_vieux <- adultes_periodes %>%
     filter(!is.na(diplome)) %>%
     group_by(Sexe, diplome, periode) %>%
@@ -135,7 +164,6 @@ for(enquete in c("SRCV","enqEmploi")){
     }) %>%
     ungroup()
   
-  print("Prévalences diplôme vieux ensemble...")
   prevalences_diplome_vieux_ensemble <- adultes_periodes %>%
     group_by(Sexe, periode) %>%
     do({
@@ -148,10 +176,10 @@ for(enquete in c("SRCV","enqEmploi")){
     filter(!is.na(diplome))%>%
     arrange(periode, Sexe, diplome, AGE)
   
-  saveRDS(adultes_periodes, paste0("./interm/adultes_periodes_",enquete,".rds"))
-  saveRDS(prevalences_SL, paste0("./interm/prevalences_SL_",enquete,".rds"))
-  saveRDS(prevalences_PCS, paste0("./interm/prevalences_PCS_",enquete,".rds"))
-  saveRDS(prevalences_diplome, paste0("./interm/prevalences_diplome_",enquete,".rds"))
+  saveRDS(adultes_periodes, paste0("./interm/adultes_periodes_",variante,".rds"))
+  saveRDS(prevalences_SL, paste0("./interm/prevalences_SL_",variante,".rds"))
+  saveRDS(prevalences_PCS, paste0("./interm/prevalences_PCS_",variante,".rds"))
+  saveRDS(prevalences_diplome, paste0("./interm/prevalences_diplome_",variante,".rds"))
   rm(adultes)
   gc()
 }

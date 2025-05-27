@@ -23,41 +23,31 @@ charger_mortalite <- function(critere, sexe, periode_arg){
     renormaliser_survie(!!sym(critere))
 }
 
-# Fonction pour imposer 100% de retraités pour tous les ages >= 70
-censure_retraite <- function(df){
-  filter(df, AGE >= 70) %>%
-    mutate(
-      retraite_limite = retraite_limite + non_retraite_limite,
-      retraite_non_limite = retraite_non_limite + non_retraite_non_limite,
-      retraite_limite_forte = retraite_limite_forte + non_retraite_limite_forte,
-      retraite_non_limite_forte = retraite_non_limite_forte + non_retraite_non_limite_forte,
-      non_retraite_limite = 0,
-      non_retraite_non_limite = 0,
-      non_retraite_limite_forte = 0,
-      non_retraite_non_limite_forte = 0
-    ) %>%
-    rbind(., filter(df, AGE < 70))
-}
+# # Fonction pour imposer 100% de retraités pour tous les ages >= 70
+# censure_retraite <- function(df){
+#   filter(df, AGE >= 70) %>%
+#     mutate(
+#       retraite_limite = retraite_limite + non_retraite_limite,
+#       retraite_non_limite = retraite_non_limite + non_retraite_non_limite,
+#       retraite_limite_forte = retraite_limite_forte + non_retraite_limite_forte,
+#       retraite_non_limite_forte = retraite_non_limite_forte + non_retraite_non_limite_forte,
+#       non_retraite_limite = 0,
+#       non_retraite_non_limite = 0,
+#       non_retraite_limite_forte = 0,
+#       non_retraite_non_limite_forte = 0
+#     ) %>%
+#     rbind(., filter(df, AGE < 70))
+# }
 
 
 # Compléter les colonnes en combinant les informations disponibles
 completer_colonnes <- function(df){
   df %>%
-    censure_retraite()%>%
+#    censure_retraite()%>%
     mutate(
-      non_limite = non_retraite_non_limite + retraite_non_limite,
-      limite = 1 - non_limite,
-      non_retraite = non_retraite_limite + non_retraite_non_limite,
-      retraite = 1 - non_retraite,
-      non_limite_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite/retraite),
-      
       survie_non_limite = survie*non_limite,
       survie_retraite = survie*retraite,
       survie_retraite_non_limite = survie*retraite_non_limite,
-      
-      non_limite_forte = non_retraite_non_limite_forte + retraite_non_limite_forte,
-      limite_forte = 1 - non_limite_forte,
-      non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
       survie_non_limite_forte = survie*non_limite_forte,
       survie_retraite_non_limite_forte = survie*retraite_non_limite_forte
     )
@@ -105,10 +95,10 @@ survie_SL <- survie_SL %>%
 
 # Fusion avec les prévalences
 # On charge les données de limitations*retraite
-for(enquete in c("SRCV","enqEmploi")){
-  prevalences_PCS <- readRDS(paste0("./interm/prevalences_PCS_",enquete,".rds"))
-  prevalences_diplome <- readRDS(paste0("./interm/prevalences_diplome_",enquete,".rds"))
-  prevalences_SL <- readRDS(paste0("./interm/prevalences_SL_",enquete,".rds"))
+for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+  prevalences_PCS <- readRDS(paste0("./interm/prevalences_PCS_",variante,".rds"))
+  prevalences_diplome <- readRDS(paste0("./interm/prevalences_diplome_",variante,".rds"))
+  prevalences_SL <- readRDS(paste0("./interm/prevalences_SL_",variante,".rds"))
   
   prevalences_survie_PCS <- merge(prevalences_PCS,survie_PCS,by=c("periode","PCS","Sexe","AGE"))%>%
     completer_colonnes%>%
@@ -122,11 +112,11 @@ for(enquete in c("SRCV","enqEmploi")){
     completer_colonnes %>%
     arrange(AENQ, Sexe, AGE)
   
-  saveRDS(prevalences_survie_PCS,paste0("interm/prevalences_survie_PCS_",enquete,".rds")) # On sauve séparément en RDS pour garder le format factor
-  saveRDS(prevalences_survie_diplome,paste0("interm/prevalences_survie_diplome_",enquete,".rds"))
-  saveRDS(prevalences_survie_SL,paste0("interm/prevalences_survie_SL_",enquete,".rds"))
+  saveRDS(prevalences_survie_PCS,paste0("interm/prevalences_survie_PCS_",variante,".rds")) # On sauve séparément en RDS pour garder le format factor
+  saveRDS(prevalences_survie_diplome,paste0("interm/prevalences_survie_diplome_",variante,".rds"))
+  saveRDS(prevalences_survie_SL,paste0("interm/prevalences_survie_SL_",variante,".rds"))
   
-  write_csv(prevalences_survie_PCS,paste0("sorties/prevalences_survie_PCS.csv"))
-  write_csv(prevalences_survie_diplome,paste0("sorties/prevalences_survie_diplome.csv"))
-  write_csv(prevalences_survie_SL,paste0("sorties/prevalences_survie_SL.csv"))
+  write_csv(prevalences_survie_PCS,paste0("sorties/prevalences_survie_PCS_",variante,".csv"))
+  write_csv(prevalences_survie_diplome,paste0("sorties/prevalences_survie_diplome_",variante,".csv"))
+  write_csv(prevalences_survie_SL,paste0("sorties/prevalences_survie_SL",variante,".csv"))
 }

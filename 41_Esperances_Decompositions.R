@@ -54,6 +54,20 @@ decomposition_ERSIF <- function(df, elements1, elements2){
   return(composants)
 }
 
+var_esperance <- function(df, elements, nom_colonne){
+  colonne_var <- pull(df, paste0(nom_colonne, "_var"))
+  sum(df$survie[elements]^2*colonne_var[elements])
+}
+
+# Variance de la différence entre deux espérances
+var_diff_esperance <- function(df, elements1, elements2, nom_colonne){
+  if(identical(elements1,elements2)){
+    return(0)
+  } else{
+    return(var_esperance(df, elements1, nom_colonne) + var_esperance(df, elements2, nom_colonne))
+  }
+}
+
 calcul_esperances <- function(df, elements1, elements2){
   decomp_evsi <- decomposition_EVSI(df, elements1, elements2)
   decomp_evsif <- decomposition_EVSIF(df, elements1, elements2)
@@ -62,7 +76,7 @@ calcul_esperances <- function(df, elements1, elements2){
   decomp_ersif <- decomposition_ERSIF(df, elements1, elements2)
   
   # On construit une ligne prête à être ajoutée à un dataframe
-  data.frame(
+  ligne <- data.frame(
     ev = sum(df$survie[elements1]), # Calcul de l'EV
     survie60 = df$survie[elements1[60-30+1]],
     evsi = sum(df$survie_non_limite[elements1]), # Calcul de l'EVSI
@@ -98,13 +112,29 @@ calcul_esperances <- function(df, elements1, elements2){
     diff_ersif_sante = decomp_ersif["sante"],
     diff_ersif_residu = decomp_ersif["residu"]
   )
+  
+  for(type_esperance in c("evsi","evsif","er","ersi","ersif")){
+    nom_colonne <- case_when(
+      type_esperance == "evsi" ~ "non_limite",
+      type_esperance == "evsif" ~ "non_limite_forte",
+      type_esperance == "er" ~ "retraite",
+      type_esperance == "ersi" ~ "retraite_non_limite",
+      type_esperance == "ersif" ~ "retraite_non_limite_forte"
+    )
+    ligne[[paste0(type_esperance, "_var")]] <- var_esperance(df, elements1, nom_colonne)
+    var_diff <- var_diff_esperance(df, elements1, elements2, nom_colonne)
+    ligne[[paste0("diff_",type_esperance,"_var")]] <- var_diff
+    ligne[[paste0("diff_",type_esperance,"_ci_inf")]] <- ligne[[paste0("diff_",type_esperance)]]-qnorm(0.975)*sqrt(var_diff)
+    ligne[[paste0("diff_",type_esperance,"_ci_sup")]] <- ligne[[paste0("diff_",type_esperance)]]+qnorm(0.975)*sqrt(var_diff)
+  }
+  return(ligne)
 }
 
 # On importe les données
-for(enquete in c("SRCV","enqEmploi")){
-  prevalences_survie_PCS <- readRDS(paste0("./interm/prevalences_survie_PCS_",enquete,".rds"))
-  prevalences_survie_diplome <- readRDS(paste0("./interm/prevalences_survie_diplome_",enquete,".rds"))
-  prevalences_survie_SL <- readRDS(paste0("./interm/prevalences_survie_SL_",enquete,".rds"))
+for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+  prevalences_survie_PCS <- readRDS(paste0("./interm/prevalences_survie_PCS_",variante,".rds"))
+  prevalences_survie_diplome <- readRDS(paste0("./interm/prevalences_survie_diplome_",variante,".rds"))
+  prevalences_survie_SL <- readRDS(paste0("./interm/prevalences_survie_SL_",variante,".rds"))
   
   # On prépare les niveaux de factorisation
   sexe_levels <- c("Femmes","Hommes")
@@ -193,8 +223,7 @@ for(enquete in c("SRCV","enqEmploi")){
     remove_rownames()
   
   ## COMPARAISON ENTRE ANNÉES (SÉRIE LONGUE), PAR SEXE
-  annee_min <- case_when(enquete == "SRCV" ~ 2008,
-                         enquete == "enqEmploi" ~ 2013) # La série SRCV remonte jusqu'à 2008, mais EE seulement jusqu'à 2013
+  annee_min <- ifelse(variante == "enqEmploi", 2013, 2008) # La série SRCV remonte jusqu'à 2008, mais EE seulement jusqu'à 2013
   comparaison_entre_annees <- expand_grid(sexe = sexe_levels, annee = c(annee_min:2019)) %>%
                             pmap_dfr( function(sexe, annee){
                               p <- prevalences_survie_SL %>% filter(Sexe == sexe)
@@ -207,17 +236,17 @@ for(enquete in c("SRCV","enqEmploi")){
     remove_rownames()
   
   # Export
-  saveRDS(comparaison_entre_sexes, paste0("interm/comparaison_entre_sexes_",enquete,".rds"))
-  saveRDS(comparaison_entre_PCS, paste0("interm/comparaison_entre_PCS_",enquete,".rds"))
-  saveRDS(comparaison_entre_diplomes, paste0("interm/comparaison_entre_diplomes_",enquete,".rds"))
-  saveRDS(comparaison_entre_periodes_par_PCS, paste0("interm/comparaison_entre_periodes_par_PCS_",enquete,".rds"))
-  saveRDS(comparaison_entre_periodes_par_diplome, paste0("interm/comparaison_entre_periodes_par_diplome_",enquete,".rds"))
-  saveRDS(comparaison_entre_annees, paste0("interm/comparaison_entre_annees_",enquete,".rds"))
+  saveRDS(comparaison_entre_sexes, paste0("interm/comparaison_entre_sexes_",variante,".rds"))
+  saveRDS(comparaison_entre_PCS, paste0("interm/comparaison_entre_PCS_",variante,".rds"))
+  saveRDS(comparaison_entre_diplomes, paste0("interm/comparaison_entre_diplomes_",variante,".rds"))
+  saveRDS(comparaison_entre_periodes_par_PCS, paste0("interm/comparaison_entre_periodes_par_PCS_",variante,".rds"))
+  saveRDS(comparaison_entre_periodes_par_diplome, paste0("interm/comparaison_entre_periodes_par_diplome_",variante,".rds"))
+  saveRDS(comparaison_entre_annees, paste0("interm/comparaison_entre_annees_",variante,".rds"))
   
-  write_csv(comparaison_entre_sexes, paste0("sorties/comparaison_entre_sexes_",enquete,".csv"))
-  write_csv(comparaison_entre_PCS, paste0("sorties/comparaison_entre_PCS_",enquete,".csv"))
-  write_csv(comparaison_entre_diplomes, paste0("sorties/comparaison_entre_diplomes_",enquete,".csv"))
-  write_csv(comparaison_entre_periodes_par_PCS, paste0("sorties/comparaison_entre_periodes_par_PCS_",enquete,".csv"))
-  write_csv(comparaison_entre_periodes_par_diplome, paste0("sorties/comparaison_entre_periodes_par_diplome_",enquete,".csv"))
-  write_csv(comparaison_entre_annees, paste0("sorties/comparaison_entre_annees_",enquete,".csv"))
+  write_csv(comparaison_entre_sexes, paste0("sorties/comparaison_entre_sexes_",variante,".csv"))
+  write_csv(comparaison_entre_PCS, paste0("sorties/comparaison_entre_PCS_",variante,".csv"))
+  write_csv(comparaison_entre_diplomes, paste0("sorties/comparaison_entre_diplomes_",variante,".csv"))
+  write_csv(comparaison_entre_periodes_par_PCS, paste0("sorties/comparaison_entre_periodes_par_PCS_",variante,".csv"))
+  write_csv(comparaison_entre_periodes_par_diplome, paste0("sorties/comparaison_entre_periodes_par_diplome_",variante,".csv"))
+  write_csv(comparaison_entre_annees, paste0("sorties/comparaison_entre_annees_",variante,".csv"))
 }
