@@ -5,7 +5,6 @@ labellize <- function(x) {
 }
 
 # breaks_cat <- c(16, 25, 50, 55+5*(0:6), Inf)
-# breaks_qqual <- c(16, 20+5*(0:13), Inf)
 # breaks_qqual_regroupe <- c(16, 30, 40+5*(0:7), Inf)
 
 mise_en_forme <- function(individus){
@@ -20,7 +19,7 @@ mise_en_forme <- function(individus){
       )),
       limite = DIM == 1 | DIM == 2,
       limite_forte = DIM == 1,
-      # age_cat = cut(AGE, breaks = breaks_cat, labels=labellize(breaks_cat), right=FALSE),
+      age_cat = cut(AGE, breaks = breaks_cat, labels=labellize(breaks_cat), right=FALSE),
       # age_qqual = cut(AGE, breaks = breaks_qqual_regroupe, labels=labellize(breaks_qqual_regroupe), right=FALSE),
       # age_qqual_nonregroupe = cut(AGE, breaks = breaks_qqual, labels=labellize(breaks_qqual), right=FALSE),
       CS = substr(CS24, 1, 1),

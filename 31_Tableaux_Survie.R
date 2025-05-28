@@ -23,27 +23,10 @@ charger_mortalite <- function(critere, sexe, periode_arg){
     renormaliser_survie(!!sym(critere))
 }
 
-# # Fonction pour imposer 100% de retraités pour tous les ages >= 70
-# censure_retraite <- function(df){
-#   filter(df, AGE >= 70) %>%
-#     mutate(
-#       retraite_limite = retraite_limite + non_retraite_limite,
-#       retraite_non_limite = retraite_non_limite + non_retraite_non_limite,
-#       retraite_limite_forte = retraite_limite_forte + non_retraite_limite_forte,
-#       retraite_non_limite_forte = retraite_non_limite_forte + non_retraite_non_limite_forte,
-#       non_retraite_limite = 0,
-#       non_retraite_non_limite = 0,
-#       non_retraite_limite_forte = 0,
-#       non_retraite_non_limite_forte = 0
-#     ) %>%
-#     rbind(., filter(df, AGE < 70))
-# }
-
 
 # Compléter les colonnes en combinant les informations disponibles
 completer_colonnes <- function(df){
   df %>%
-#    censure_retraite()%>%
     mutate(
       survie_non_limite = survie*non_limite,
       survie_retraite = survie*retraite,
@@ -95,7 +78,7 @@ survie_SL <- survie_SL %>%
 
 # Fusion avec les prévalences
 # On charge les données de limitations*retraite
-for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
   prevalences_PCS <- readRDS(paste0("./interm/prevalences_PCS_",variante,".rds"))
   prevalences_diplome <- readRDS(paste0("./interm/prevalences_diplome_",variante,".rds"))
   prevalences_SL <- readRDS(paste0("./interm/prevalences_SL_",variante,".rds"))

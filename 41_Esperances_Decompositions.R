@@ -54,21 +54,36 @@ decomposition_ERSIF <- function(df, elements1, elements2){
   return(composants)
 }
 
-var_esperance <- function(df, elements, nom_colonne){
-  colonne_var <- pull(df, paste0(nom_colonne, "_var"))
-  sum(df$survie[elements]^2*colonne_var[elements])
+var_esperance <- function(df, elements, nom_colonne, age_par_cat = FALSE){
+  df_var <- df[elements,]
+  nom_var <- paste0(nom_colonne, "_var")
+  if(age_par_cat){
+    df_var <- df_var %>%
+      group_by(agecat_nombre) %>%
+      summarise(
+        survie = sum(survie),
+        var_cat = first(.data[[nom_var]]) #toutes les vars sont identiques
+      )
+  } else{
+    df_var <- df_var %>%
+      mutate(
+        var_cat = .data[[nom_var]]
+      )
+  }
+  
+  return(sum(df_var$survie^2*df_var$var_cat))
 }
 
 # Variance de la différence entre deux espérances
-var_diff_esperance <- function(df, elements1, elements2, nom_colonne){
+var_diff_esperance <- function(df, elements1, elements2, nom_colonne, age_par_cat = FALSE){
   if(identical(elements1,elements2)){
     return(0)
   } else{
-    return(var_esperance(df, elements1, nom_colonne) + var_esperance(df, elements2, nom_colonne))
+    return(var_esperance(df, elements1, nom_colonne, age_par_cat) + var_esperance(df, elements2, nom_colonne, age_par_cat))
   }
 }
 
-calcul_esperances <- function(df, elements1, elements2){
+calcul_esperances <- function(df, elements1, elements2, age_par_cat = FALSE){
   decomp_evsi <- decomposition_EVSI(df, elements1, elements2)
   decomp_evsif <- decomposition_EVSIF(df, elements1, elements2)
   decomp_er <- decomposition_ER(df,elements1,elements2)
@@ -121,8 +136,8 @@ calcul_esperances <- function(df, elements1, elements2){
       type_esperance == "ersi" ~ "retraite_non_limite",
       type_esperance == "ersif" ~ "retraite_non_limite_forte"
     )
-    ligne[[paste0(type_esperance, "_var")]] <- var_esperance(df, elements1, nom_colonne)
-    var_diff <- var_diff_esperance(df, elements1, elements2, nom_colonne)
+    ligne[[paste0(type_esperance, "_var")]] <- var_esperance(df, elements1, nom_colonne, age_par_cat)
+    var_diff <- var_diff_esperance(df, elements1, elements2, nom_colonne, age_par_cat)
     ligne[[paste0("diff_",type_esperance,"_var")]] <- var_diff
     ligne[[paste0("diff_",type_esperance,"_ci_inf")]] <- ligne[[paste0("diff_",type_esperance)]]-qnorm(0.975)*sqrt(var_diff)
     ligne[[paste0("diff_",type_esperance,"_ci_sup")]] <- ligne[[paste0("diff_",type_esperance)]]+qnorm(0.975)*sqrt(var_diff)
@@ -131,7 +146,8 @@ calcul_esperances <- function(df, elements1, elements2){
 }
 
 # On importe les données
-for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
+  print(variante)
   prevalences_survie_PCS <- readRDS(paste0("./interm/prevalences_survie_PCS_",variante,".rds"))
   prevalences_survie_diplome <- readRDS(paste0("./interm/prevalences_survie_diplome_",variante,".rds"))
   prevalences_survie_SL <- readRDS(paste0("./interm/prevalences_survie_SL_",variante,".rds"))
@@ -162,7 +178,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_sexes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels) %>%
     pmap_dfr(function(sexe, periode1){
       p <- prevalences_survie_PCS %>% filter(periode == periode1, PCS == "Ensemble")
-      calcul_esperances(p, which(p$Sexe == sexe), which(p$Sexe == "Hommes"))%>%
+      calcul_esperances(p, which(p$Sexe == sexe), which(p$Sexe == "Hommes"), age_par_cat = endsWith(variante, "agecat"))%>%
         mutate(periode = periode1,
                Sexe = sexe)
     }) %>%
@@ -174,7 +190,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
                             pmap_dfr(function(sexe, periode1, pcs){
                                          p <- prevalences_survie_PCS %>% filter(Sexe == sexe, periode == periode1)
-                                         calcul_esperances(p, which(p$PCS == pcs), which(p$PCS == "Cadres"))%>%
+                                         calcul_esperances(p, which(p$PCS == pcs), which(p$PCS == "Cadres"),age_par_cat = endsWith(variante, "agecat"))%>%
                                            mutate(periode = periode1,
                                                   Sexe = sexe,
                                                   PCS = pcs)
@@ -187,7 +203,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_diplomes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 =diplome_levels) %>%
     pmap_dfr(function(sexe, periode1, diplome1){
       p <- prevalences_survie_diplome %>% filter(Sexe == sexe, periode == periode1)
-      calcul_esperances(p, which(p$diplome == diplome1), which(p$diplome == "Supérieur"))%>%
+      calcul_esperances(p, which(p$diplome == diplome1), which(p$diplome == "Supérieur"),age_par_cat = endsWith(variante, "agecat"))%>%
         mutate(periode = periode1,
                Sexe = sexe,
                diplome = diplome1)
@@ -200,7 +216,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_periodes_par_PCS <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, pcs = pcs_levels) %>%
     pmap_dfr(function(sexe, periode1, pcs){
       p <- prevalences_survie_PCS %>% filter(Sexe == sexe, PCS == pcs)
-      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
+      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"),age_par_cat = endsWith(variante, "agecat"))%>%
         mutate(periode = periode1,
                Sexe = sexe,
                PCS = pcs)
@@ -213,7 +229,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_periodes_par_diplome <- expand_grid(sexe = sexe_levels, periode1 = periode_levels, diplome1 = diplome_levels) %>%
     pmap_dfr(function(sexe, periode1, diplome1){
       p <- prevalences_survie_diplome %>% filter(Sexe == sexe, diplome == diplome1)
-      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"))%>%
+      calcul_esperances(p, which(p$periode == periode1), which(p$periode == "2009-2013"),age_par_cat = endsWith(variante, "agecat"))%>%
         mutate(periode = periode1,
                Sexe = sexe,
                diplome = diplome1)
@@ -227,7 +243,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   comparaison_entre_annees <- expand_grid(sexe = sexe_levels, annee = c(annee_min:2019)) %>%
                             pmap_dfr( function(sexe, annee){
                               p <- prevalences_survie_SL %>% filter(Sexe == sexe)
-                              calcul_esperances(p, which(p$AENQ == annee), which(p$AENQ == annee_min))%>%
+                              calcul_esperances(p, which(p$AENQ == annee), which(p$AENQ == annee_min), age_par_cat = endsWith(variante, "agecat"))%>%
                                 mutate(AENQ = annee,
                                        Sexe = sexe)
                             }) %>%

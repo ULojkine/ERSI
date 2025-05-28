@@ -3,7 +3,8 @@ largeur <- 18
 hauteur <- largeur*0.57
 
 # IMPORTATION
-for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
+for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
+  print(variante)
   comparaison_entre_sexes <- readRDS(paste0("interm/comparaison_entre_sexes_",variante,".rds")) %>% filter(periode == "2017-2019") 
   comparaison_entre_PCS_periodes <- readRDS(paste0("interm/comparaison_entre_PCS_",variante,".rds"))
   comparaison_entre_PCS <- comparaison_entre_PCS_periodes %>% filter(periode == "2017-2019") 
@@ -20,6 +21,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
   
   legende <- case_when(
     variante == "SRCV" ~ "Source : SRCV",
+    variante == "SRCV_agecat" ~ "Source : SRCV. Lissage par catégories d'âge.",
     variante == "SRCV_revenu" ~ "Source : SRCV. Retraite définie par le revenu.",
     variante == "enqEmploi" ~ "Source : enquête Emploi."
   )
@@ -447,6 +449,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par les incapacités","expliquée par la mortalité","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, y = diff_evsi), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, ymin = diff_evsi_ci_inf, ymax = diff_evsi_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_EVSI_entre_periodes_par_PCS_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
@@ -465,6 +468,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par la mortalité","expliquée par la retraite","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, y = diff_er), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, ymin = diff_er_ci_inf, ymax = diff_er_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_ER_entre_periodes_par_PCS_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
@@ -482,6 +486,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par la mortalité","expliquée par les incapacités","expliquée par la retraite","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, y = diff_ersi), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_PCS, aes(x = PCS, ymin = diff_ersi_ci_inf, ymax = diff_ersi_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_ERSI_entre_periodes_par_PCS_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
@@ -499,6 +504,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par les incapacités","expliquée par la mortalité","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, y = diff_evsi), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, ymin = diff_evsi_ci_inf, ymax = diff_evsi_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_EVSI_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
@@ -517,6 +523,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par la mortalité","expliquée par la retraite","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, y = diff_er), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, ymin = diff_er_ci_inf, ymax = diff_er_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_ER_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
@@ -534,6 +541,7 @@ for(variante in c("SRCV","SRCV_revenu","enqEmploi")){
                         labels=c("expliquée par la mortalité","expliquée par les incapacités","expliquée par la retraite","Résidu"),
                         palette="YlOrBr", direction=-1)+
       geom_point(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, y = diff_ersi), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, ymin = diff_ersi_ci_inf, ymax=diff_ersi_ci_sup), color="black", width=0.2)+
       facet_wrap(~Sexe)
   ) %>%
     ggsave(paste0("graphes/diff_ERSI_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
