@@ -1,4 +1,4 @@
-# Fonctions
+# Fonctions ####
 seuils_agecat <- c(30+5*(0:11), Inf)
 labels_agecat <- c(30+5*(0:10)) %>% paste0(.,"-",.+4) %>% c(.,"85+")
 
@@ -9,8 +9,59 @@ categoriser_ages <- function(df){
   )
 }
 
-# Calcul de la prévalence moyenne par âge au sein d'une catégorie ... par moyenne glissante
-prevalences_moyennes <- function(donnees, age, ...) {
+
+# Calcul de la prévalence moyenne par catégorie d'âge
+prevalences_moyennes_agecat <- function(donnees, ...) {
+  donnees %>% 
+    filter(AGE %in% c(30:100)) %>% 
+    group_by(agecat_nombre, ...) %>%
+    rename(
+      retraite_indiv = retraite
+    ) %>%
+    summarise(
+      non_limite = weighted_mean_na_rm(!limite, PB040),
+      non_limite_var = weighted_var_na_rm(!limite, PB040),
+      non_limite_forte = weighted_mean_na_rm(!limite_forte, PB040),
+      non_limite_forte_var = weighted_var_na_rm(!limite_forte, PB040),
+      retraite = weighted_mean_na_rm(retraite_indiv, PB040),
+      retraite_var = weighted_var_na_rm(retraite_indiv, PB040),
+      retraite_non_limite = weighted_mean_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_var = weighted_var_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_forte = weighted_mean_na_rm(retraite_indiv & !limite_forte, PB040),
+      retraite_non_limite_forte_var = weighted_var_na_rm(retraite_indiv & !limite_forte, PB040),
+      non_retraite_non_limite = weighted_mean_na_rm(!retraite_indiv & !limite, PB040),
+      non_retraite_limite = weighted_mean_na_rm(!retraite_indiv & limite, PB040),
+      non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite_indiv & !limite_forte, PB040),
+      non_limite_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite/retraite),
+      non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
+      .groups='drop'
+    ) %>%
+    uncount(ifelse(agecat_nombre < 85, 5, 16), .id = "id_clone") %>%  # Creates 5 copies with counter
+    mutate(AGE = agecat_nombre + id_clone - 1) %>% 
+    select(-id_clone) %>%
+    ungroup()
+}
+
+# Sur le même modèle, on calcule les proportions entre groupes 
+proportions_agecat <- function(donnees, critere = "PCS") {
+  donnees %>% 
+    filter(AGE %in% c(30:100)) %>%
+    group_by(periode, Sexe, agecat_nombre, !!sym(critere)) %>%
+    summarise(
+      poids_groupe = sum(PB040)
+    ) %>%
+    group_by(periode,Sexe,agecat_nombre) %>%
+    mutate(
+      proportion = poids_groupe / sum(poids_groupe) 
+    ) %>%
+    uncount(ifelse(agecat_nombre < 85, 5, 16), .id = "id_clone") %>%  # Creates 5 copies with counter
+    mutate(AGE = agecat_nombre + id_clone - 1) %>% 
+    select(-c(id_clone, poids_groupe)) %>%
+    ungroup()
+}
+
+# Spécification alternative : moyenne glissante
+prevalences_moyenne_glissante <- function(donnees, age, ...) {
   donnees %>% 
     filter(AGE >= age-2 & AGE <= age+2) %>% 
     group_by(...) %>%
@@ -36,44 +87,6 @@ prevalences_moyennes <- function(donnees, age, ...) {
       non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
       .groups='drop'
     ) %>%
-    ungroup()
-}
-
-# Calcul de la prévalence moyenne par catégorie d'âge (pas moy glissante) au sein d'une catégorie ... 
-prevalences_moyennes_agecat <- function(donnees, agecat_ref, ...) {
-  ages_dans_cat <- ifelse(
-    agecat_ref < 85,
-    5,
-    16
-  )
-  donnees %>% 
-    filter(agecat_nombre == agecat_ref) %>% 
-    group_by(...) %>%
-    rename(
-      retraite_indiv = retraite
-    ) %>%
-    summarise(
-      agecat_nombre = agecat_ref,
-      non_limite = weighted_mean_na_rm(!limite, PB040),
-      non_limite_var = weighted_var_na_rm(!limite, PB040),
-      non_limite_forte = weighted_mean_na_rm(!limite_forte, PB040),
-      non_limite_forte_var = weighted_var_na_rm(!limite_forte, PB040),
-      retraite = weighted_mean_na_rm(retraite_indiv, PB040),
-      retraite_var = weighted_var_na_rm(retraite_indiv, PB040),
-      retraite_non_limite = weighted_mean_na_rm(retraite_indiv & !limite, PB040),
-      retraite_non_limite_var = weighted_var_na_rm(retraite_indiv & !limite, PB040),
-      retraite_non_limite_forte = weighted_mean_na_rm(retraite_indiv & !limite_forte, PB040),
-      retraite_non_limite_forte_var = weighted_var_na_rm(retraite_indiv & !limite_forte, PB040),
-      non_retraite_non_limite = weighted_mean_na_rm(!retraite_indiv & !limite, PB040),
-      non_retraite_limite = weighted_mean_na_rm(!retraite_indiv & limite, PB040),
-      non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite_indiv & !limite_forte, PB040),
-      non_limite_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite/retraite),
-      non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
-      .groups='drop'
-    ) %>%
-    uncount(ages_dans_cat, .id = "id_clone") %>%  # Creates 5 copies with counter
-    mutate(AGE = agecat_ref + id_clone - 1) %>% 
-    select(-id_clone) %>%
     ungroup()
 }
 
@@ -116,14 +129,17 @@ prevalences_lineaires <- function(donnees) {
     )
 }
 
-# Calcul des prévalences pour chaque source
-
-for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
+# Calcul des prévalences pour chaque variante ####
+for(variante in liste_variantes[liste_variantes != "SRCV_recensement"]){
   print(variante)
   enquete <- ifelse(startsWith(variante, "SRCV"), "SRCV","enqEmploi")
   adultes <- readRDS(paste0("./interm/adultes_",enquete,".rds"))
   if(endsWith(variante,"revenu")){  # variante où la retraite est définie par le fait de toucher une pension en t-1 et non de manière déclarative
       adultes <- mutate(adultes, retraite = retraite_revenu_i)
+  }
+  
+  if(endsWith(variante,"retraitebrut")){
+    adultes <- mutate(adultes, retraite = retraite_brut)
   }
   
   adultes_periodes <- adultes %>%
@@ -140,10 +156,10 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
     )%>%
     ungroup()
   
-  if(!endsWith(variante,"agecat")){
+  if(endsWith(variante,"lisse")){   ## Variante lissée ####
     # SÉRIE LONGUE PAR SEXE & ANNÉE, LISSAGE LINÉAIRE
     # On calcule les prévalences pour les âges en dessous de 75 ans par moyenne glissante sur 5 ans
-    prevalences_SL <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes, age = ., Sexe, AENQ) )
+    prevalences_SL <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = adultes, age = ., Sexe, AENQ) )
     
     #Au-dessus de 75 ans, on procède par interpolation linéaire dans la catégorie
     prevalences_SL_vieux <- adultes %>%
@@ -157,15 +173,15 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
     arrange(AENQ, Sexe, AGE)
     
     # TABLE PAR PCS, PERIODE, LISSAGE LINÉAIRE
-    prevalences_PCS <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")),
+    prevalences_PCS <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")),
                                                              age = ., Sexe, PCS, periode) )
     
-    prevalences_PCS_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
+    prevalences_PCS_ensemble <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = adultes_periodes,
                                                                       age = ., Sexe, periode) ) %>%
     mutate(PCS = "Ensemble")
     
     # Les agriculteurs et les artisans ne sont pas assez nombreux, on regroupe les deux sexes
-    prevalences_PCS_agriculteurs_artisans <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")),
+    prevalences_PCS_agriculteurs_artisans <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")),
                                                                                    age = ., PCS, periode) ) %>%
     mutate(Sexe = "Ensemble")
     
@@ -199,9 +215,14 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
     
     
     # TABLE PAR DIPLÔME, PERIODE, LISSAGE LINÉAIRE
-    prevalences_diplome <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes, age = ., Sexe, diplome, periode) )
+    prevalences_diplome <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = adultes_periodes, age = ., Sexe, diplome, periode) )
     
-    prevalences_diplome_ensemble <- map_dfr(c(30:74), ~prevalences_moyennes(donnees = adultes_periodes,
+    prevalences_diplome_bacOuMoins <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = filter(adultes_periodes, diplome != "Supérieur"),
+                                                                            age = ., Sexe, periode) ) %>%
+      mutate(diplome = "Bac ou moins")
+    
+    
+    prevalences_diplome_ensemble <- map_dfr(c(30:74), ~prevalences_moyenne_glissante(donnees = adultes_periodes,
                                                                       age = ., Sexe, periode) ) %>%
     mutate(diplome = "Ensemble")
     
@@ -213,6 +234,16 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
     }) %>%
     ungroup()
     
+    prevalences_diplome_vieux_bacOuMoins <- adultes_periodes %>%
+      filter(diplome != "Supérieur") %>%
+      group_by(Sexe, periode) %>%
+      do({
+        prevalences_lineaires(.)
+      }) %>%
+      ungroup() %>%
+      mutate(diplome = "Bac ou moins")
+    
+    
     prevalences_diplome_vieux_ensemble <- adultes_periodes %>%
     group_by(Sexe, periode) %>%
     do({
@@ -221,38 +252,39 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
     ungroup() %>%
     mutate(diplome = "Ensemble")
     
-    prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_ensemble, prevalences_diplome_vieux, prevalences_diplome_vieux_ensemble) %>%
+    prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_bacOuMoins, prevalences_diplome_ensemble, prevalences_diplome_vieux, prevalences_diplome_vieux_bacOuMoins, prevalences_diplome_vieux_ensemble) %>%
     filter(!is.na(diplome))%>%
     arrange(periode, Sexe, diplome, AGE)
   } else{
+  ##Autres variantes ####
     adultes <- categoriser_ages(adultes)
     adultes_periodes <- categoriser_ages(adultes_periodes)
     
     # Série longue par sexe
-    prevalences_SL <- map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = adultes, agecat_ref = ., Sexe, AENQ) )%>%
+    prevalences_SL <- prevalences_moyennes_agecat(donnees = adultes, Sexe, AENQ)%>%
       arrange(AENQ, Sexe, AGE)
     
     # Par PCS par période
-    prevalences_PCS <- map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")),
-                                                               agecat_ref = ., Sexe, PCS, periode) )
+    prevalences_PCS <- prevalences_moyennes_agecat(donnees = filter(adultes_periodes, PCS %notin% c("Agriculteurs","Artisans",NA,"Inactifs")), Sexe, PCS, periode)
     
-    prevalences_PCS_ensemble <- map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = adultes_periodes,
-                                                                                    agecat_ref = ., Sexe, periode) ) %>%
+    prevalences_PCS_ensemble <- prevalences_moyennes_agecat(donnees = adultes_periodes,Sexe, periode) %>%
       mutate(PCS = "Ensemble")
     
     # Les agriculteurs et les artisans ne sont pas assez nombreux, on regroupe les deux sexes
-    prevalences_PCS_agriculteurs_artisans <-  map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")), agecat_ref = ., PCS, periode) ) %>%
+    prevalences_PCS_agriculteurs_artisans <-  prevalences_moyennes_agecat(donnees = filter(adultes_periodes, PCS %in% c("Agriculteurs","Artisans")), PCS, periode) %>%
       mutate(Sexe = "Ensemble")
     
     prevalences_PCS <- rbind(prevalences_PCS, prevalences_PCS_ensemble, prevalences_PCS_agriculteurs_artisans) %>%
       arrange(periode, Sexe, PCS, AGE)
     
     # Par diplôme et période
-    prevalences_diplome <- map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = adultes_periodes, agecat_ref = ., Sexe, diplome, periode) )
-    prevalences_diplome_ensemble <- map_dfr(c(30+5*(0:11)), ~prevalences_moyennes_agecat(donnees = adultes_periodes, agecat_ref = ., Sexe, periode) ) %>%
+    prevalences_diplome <- prevalences_moyennes_agecat(donnees = adultes_periodes, Sexe, diplome, periode)
+    prevalences_diplome_bacOuMoins <- prevalences_moyennes_agecat(donnees = filter(adultes_periodes, diplome != "Supérieur"), Sexe, periode) %>%
+      mutate(diplome = "Bac ou moins")
+    prevalences_diplome_ensemble <- prevalences_moyennes_agecat(donnees = adultes_periodes, Sexe, periode) %>%
       mutate(diplome = "Ensemble")
     
-    prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_ensemble) %>%
+    prevalences_diplome <- rbind(prevalences_diplome, prevalences_diplome_bacOuMoins, prevalences_diplome_ensemble) %>%
       filter(!is.na(diplome))%>%
       arrange(periode, Sexe, diplome, AGE)
     
@@ -262,6 +294,117 @@ for(variante in c("SRCV","SRCV_agecat","SRCV_revenu","enqEmploi")){
   saveRDS(prevalences_SL, paste0("./interm/prevalences_SL_",variante,".rds"))
   saveRDS(prevalences_PCS, paste0("./interm/prevalences_PCS_",variante,".rds"))
   saveRDS(prevalences_diplome, paste0("./interm/prevalences_diplome_",variante,".rds"))
+  
+  if(variante == "SRCV"){ # tant qu'on est dans la spécification de base, on se livre à deux exercices : calculer les proportions de chaque catégorie, et prendre en compte les EHPAD via le recensement
+    ### Proportions des catégories ####
+    proportions_PCS <- proportions_agecat(adultes_periodes, critere = "PCS")
+    proportions_diplome <- proportions_agecat(adultes_periodes, critere = "diplome")
+    saveRDS(proportions_PCS, "./interm/proportions_PCS.rds")
+    saveRDS(proportions_diplome, "./interm/proportions_diplome.rds")
+    
+    ### Prise en compte du recensement ####
+    recensement2019 <- read_delim("./data/Recensement/comptage_DIPL_AGED_ordinaires_2019.csv", 
+                                  delim = ";", escape_double = FALSE, trim_ws = TRUE)
+    
+    recensement2019 <- recensement2019 %>%
+      rename(
+        AGE = AGED,
+        diplome = diplome_regroupe
+      ) %>%
+      mutate(
+        AGE = as.integer(AGE),
+        diplome = sub("^0\\w+ - ","",diplome)
+      )
+    
+    # <!> PROVISOIRE EN ATTENDANT LES DONNÉES PAR SEXE
+    recensement2019 <- recensement2019 %>%
+      uncount(3, .id = "id_clone") %>%
+      mutate(Sexe = case_when(
+        id_clone == 1 ~ "Hommes",
+        id_clone == 2 ~ "Femmes",
+        id_clone == 3 ~ "Ensemble"
+      )) %>%
+      select(-id_clone)
+    
+    # On complète les lignes manquantes
+    recensement2019 <- recensement2019 %>%
+      filter(AGE %in% c(30:100)) %>%
+      complete(diplome,Sexe,AGE, fill = list(ordinaires = 0, non_ordinaires = 0))
+    
+    # Catégories agrégées
+    recensement2019_bacOuMoins <- recensement2019 %>%
+      filter(diplome != "Supérieur") %>%
+      group_by(Sexe,AGE) %>%
+      summarise(
+        ordinaires = sum(ordinaires),
+        non_ordinaires = sum(non_ordinaires),
+        nobs_echant = sum(nobs_echant),
+        prop=NA,
+        diplome = "Bac ou moins"
+      )
+    
+    recensement2019_ensemble <- recensement2019 %>%
+      group_by(Sexe,AGE) %>%
+      summarise(
+        ordinaires = sum(ordinaires),
+        non_ordinaires = sum(non_ordinaires),
+        nobs_echant = sum(nobs_echant),
+        prop=NA,
+        diplome = "Ensemble"
+      )
+    
+    recensement2019 <- rbind(recensement2019,
+                             recensement2019_bacOuMoins,
+                             recensement2019_ensemble)
+    
+    recensement2019_cat <- recensement2019 %>%
+      categoriser_ages %>%
+      group_by(agecat_nombre,diplome,Sexe)%>%
+      mutate(
+        proportion_ordinaires = sum(ordinaires)/sum(ordinaires+non_ordinaires),
+        proportion_ordinaires_var = proportion_ordinaires*(1-proportion_ordinaires)/sum(nobs_echant)
+      ) %>%
+      ungroup()%>%
+      select(AGE,diplome,Sexe,proportion_ordinaires,proportion_ordinaires_var) %>%
+      filter(AGE %in% c(70:100))
+    
+    prevalences_diplome_recensement <- prevalences_diplome %>%
+      filter(periode == "2017-2019", AGE %in% c(70:100)) %>%
+      left_join(., recensement2019_cat, by=c("diplome","Sexe","AGE")) %>%
+      rename(
+        non_limite_brut = non_limite,
+        non_limite_brut_var = non_limite_var,
+        non_limite_forte_brut = non_limite_forte,
+        non_limite_forte_brut_var = non_limite_forte_var
+      )%>%
+      mutate(
+        non_limite = non_limite_brut*proportion_ordinaires,
+        non_limite_var = non_limite_brut^2*proportion_ordinaires_var+proportion_ordinaires^2*non_limite_brut_var+proportion_ordinaires_var*non_limite_brut_var, # V(XY) = V(X)E(Y)2 + V(Y)E(X)2 + V(X)V(Y)
+        non_limite_forte = non_limite_forte_brut*proportion_ordinaires,
+        non_limite_forte_var = non_limite_forte_brut^2*proportion_ordinaires_var+proportion_ordinaires^2*non_limite_forte_brut_var+proportion_ordinaires_var*non_limite_forte_brut_var,
+        retraite_non_limite = non_limite,
+        retraite_non_limite_var = non_limite_var,
+        retraite_non_limite_forte = non_limite_forte,
+        retraite_non_limite_forte_var = non_limite_forte_var,
+        non_retraite_non_limite = 0,
+        non_retraite_limite = 0,
+        non_retraite_non_limite_forte = 0,
+        non_limite_parmi_retraite = non_limite,
+        non_limite_forte_parmi_retraite = non_limite_forte,
+      ) %>%
+      select(
+        -c(proportion_ordinaires, proportion_ordinaires_var,non_limite_brut, non_limite_brut_var,non_limite_forte_brut,non_limite_forte_brut_var)
+      )
+    
+    colnames(prevalences_diplome_recensement)
+    
+    prevalences_diplome_recensement <- prevalences_diplome %>%
+      filter(periode == "2017-2019", AGE < 70) %>%
+      rbind(prevalences_diplome_recensement) %>%
+      arrange(Sexe,diplome,AGE)
+    
+    saveRDS(prevalences_diplome_recensement, paste0("./interm/prevalences_diplome_SRCV_recensement.rds"))
+  }
   rm(adultes)
   gc()
 }

@@ -19,9 +19,6 @@ mise_en_forme <- function(individus){
       )),
       limite = DIM == 1 | DIM == 2,
       limite_forte = DIM == 1,
-      age_cat = cut(AGE, breaks = breaks_cat, labels=labellize(breaks_cat), right=FALSE),
-      # age_qqual = cut(AGE, breaks = breaks_qqual_regroupe, labels=labellize(breaks_qqual_regroupe), right=FALSE),
-      # age_qqual_nonregroupe = cut(AGE, breaks = breaks_qqual, labels=labellize(breaks_qqual), right=FALSE),
       CS = substr(CS24, 1, 1),
       CS = ifelse(CS == 7 | is.na(CS), substr(CS_ANTE, 1, 1), CS),
       PCS = factor(recode(
@@ -51,7 +48,7 @@ mise_en_forme <- function(individus){
       retraite_revenu_i_brut = !is.na(RETRAITES_I),
       retraite_revenu_i = retraite_revenu_i_brut | AGE >= 70
     ) %>%
-    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite","retraite_revenu_i"))
+    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite","retraite_brut","retraite_revenu_i"))
 }
 
 # SRCV 

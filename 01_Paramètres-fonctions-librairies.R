@@ -16,4 +16,12 @@ weighted_var_na_rm <- function(vecteur, poids) {
   m*(1-m)/n
 }
 
+
+liste_variantes <- c("SRCV",
+                     "SRCV_lisse",
+                     "SRCV_revenu",
+                     "SRCV_retraitebrut",
+                     "SRCV_recensement",
+                     "enqEmploi")
+
 rstudioapi::getActiveDocumentContext()$path %>% dirname() %>% dirname() %>% setwd()
