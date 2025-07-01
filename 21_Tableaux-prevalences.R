@@ -309,22 +309,17 @@ for(variante in liste_variantes[liste_variantes != "SRCV_recensement"]){
     recensement2019 <- recensement2019 %>%
       rename(
         AGE = AGED,
+        Sexe = SEXE,
         diplome = diplome_regroupe
       ) %>%
       mutate(
         AGE = as.integer(AGE),
+        Sexe = case_when(
+          Sexe == 1 ~ "Hommes",
+          Sexe == 2 ~ "Femmes"
+        ),
         diplome = sub("^0\\w+ - ","",diplome)
       )
-    
-    # <!> PROVISOIRE EN ATTENDANT LES DONNÉES PAR SEXE
-    recensement2019 <- recensement2019 %>%
-      uncount(3, .id = "id_clone") %>%
-      mutate(Sexe = case_when(
-        id_clone == 1 ~ "Hommes",
-        id_clone == 2 ~ "Femmes",
-        id_clone == 3 ~ "Ensemble"
-      )) %>%
-      select(-id_clone)
     
     # On complète les lignes manquantes
     recensement2019 <- recensement2019 %>%

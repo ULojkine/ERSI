@@ -1,5 +1,5 @@
 # Importation de nos données
-comparaison_entre_annees <- readRDS("./interm/comparaison_entre_annees.rds")
+comparaison_entre_annees <- readRDS("./interm/comparaison_entre_annees_SRCV.rds")
 adultes_periodes <- readRDS("./interm/adultes_periodes.rds")
 
 # De données annexes
@@ -28,7 +28,9 @@ evsi_SL_DREES <- evsi_SL_DREES %>%
 
 evsi_SL_auteurs <- comparaison_entre_annees %>%
   select(AENQ, Sexe, ev, evsi) %>%
-  mutate(source = "Auteurs")
+  mutate(source = "Auteurs",
+         ev = ev,
+         evsi = evsi)
 
 evsi_comparaison <- rbind(
   evsi_SL_auteurs,
@@ -37,7 +39,8 @@ evsi_comparaison <- rbind(
   mutate(
     AENQ = as.numeric(AENQ)
   ) %>%
-  pivot_longer(cols = c("ev","evsi"), names_to = "variable", values_to = "valeur")
+  pivot_longer(cols = c("ev","evsi"), names_to = "variable", values_to = "valeur") %>%
+  arrange(AENQ, Sexe, variable)
 
 (ggplot()+
   geom_line(data = evsi_comparaison, aes(x = AENQ, y=valeur, color=source, group=source))+
