@@ -4,9 +4,11 @@ renormaliser_survie <- function(df, ...){
   df %>%
     group_by(...) %>%
     mutate(
+           mortalite_centrale_99 = mortalite[AGE == 99]/(1 - mortalite[AGE == 99]/2),
            survie_ageexact = ifelse(AGE < 100, (survie + lead(survie))/2, survie), #on passe de la survie en âge atteint fournie par Blanpain à la survie en âge exact
-           survie_ap = ifelse(AGE < 100, (survie_ageexact + lead(survie_ageexact))/2, survie_ageexact) # on passe de la survie en âge exact aux années personne
-    ) #on réexprime la survie en années-personnes
+           survie_ap = ifelse(AGE < 100, (survie_ageexact + lead(survie_ageexact))/2, survie_ageexact/mortalite_centrale_99) # on passe de la survie en âge exact aux années personne
+    ) %>%
+    select(-mortalite_centrale_99)#on réexprime la survie en années-personnes
 }
 
 
@@ -24,10 +26,11 @@ charger_mortalite <- function(critere, sexe, periode_arg){
     rename(
       survie_brut = survie
     ) %>%
+    filter(AGE %in% c(30:100)) %>%
     group_by(periode, Sexe, !!sym(critere)) %>%
     mutate(
       survie = survie_brut / survie_brut[AGE == 30],
-      mortalite = ifelse(AGE < 100, 1 - lead(survie)/survie, 0),
+      mortalite = ifelse(AGE < 100, 1 - lead(survie)/survie, NA),
     ) %>%
     ungroup() %>%
     select(-survie_brut) %>%
@@ -106,7 +109,7 @@ survie_SL <- survie_SL %>%
               arrange(Sexe, AENQ, AGE) %>% 
               group_by(AENQ, Sexe) %>%
               mutate(survie = cumprod(1 - lag(mortalite, default=0)/100000)) %>% # On calcule la survie instantanée
-              renormaliser_survie()%>%
+              renormaliser_survie(., Sexe, AENQ)%>%
               ungroup()
 
 # Fusion avec les prévalences par variante ####
