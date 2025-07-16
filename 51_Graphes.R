@@ -581,6 +581,36 @@ for(variante in liste_variantes){
   ) %>%
     ggsave(paste0("graphes/diff_ER_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
   
+  (ggplot()+
+      geom_bar(data = diff_er_long, aes(x = diplome, y=valeur, fill=factor(composant, levels=c("diff_er_residu", "diff_er_survie","diff_er_retraite"))),
+               position="stack", stat="identity")+
+      labs(caption = legende, x = "Diplôme", y="Années",fill="Espérance de retraite, \n évolution entre 2009-2013 \n et 2017-2019")+
+      
+      scale_fill_brewer(breaks=c("diff_er_survie","diff_er_retraite","diff_er_residu"),
+                        labels=c("expliquée par la mortalité","expliquée par la retraite","Résidu"),
+                        palette="YlOrBr", direction=-1)+
+      geom_point(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, y = diff_er), color="black", size=2)+
+      geom_errorbar(data = comparaison_entre_periodes_par_diplome, aes(x = diplome, ymin = diff_er_ci_inf, ymax = diff_er_ci_sup), color="black", width=0.2)+
+      facet_wrap(~Sexe)
+  ) %>%
+    ggsave(paste0("graphes/diff_ER_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
+
+  (ggplot()+
+      geom_bar(data = filter(diff_er_long, diplome %in% c("Supérieur","Bac ou moins","Ensemble")),
+              aes(x = diplome, y=valeur, fill=factor(composant, levels=c("diff_er_residu", "diff_er_survie","diff_er_retraite"))),
+               position="stack", stat="identity")+
+      labs(caption = legende, x = "Diplôme", y="Années",fill="Espérance de retraite, \n évolution entre 2009-2013 \n et 2017-2019")+
+      
+      scale_fill_brewer(breaks=c("diff_er_survie","diff_er_retraite","diff_er_residu"),
+                        labels=c("expliquée par la mortalité","expliquée par la retraite","Résidu"),
+                        palette="YlOrBr", direction=-1)+
+      geom_point(data = filter(comparaison_entre_periodes_par_diplome, diplome %in% c("Supérieur","Bac ou moins","Ensemble")), aes(x = diplome, y = diff_er), color="black", size=2)+
+      geom_errorbar(data = filter(comparaison_entre_periodes_par_diplome, diplome %in% c("Supérieur","Bac ou moins","Ensemble")), aes(x = diplome, ymin = diff_er_ci_inf, ymax = diff_er_ci_sup), color="black", width=0.2)+
+      facet_wrap(~Sexe)
+  ) %>%
+    ggsave(paste0("graphes/diff_ER_entre_periodes_par_diplome_agrege_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
+  
+  
   # Évolution de l'ERSI entre périodes par diplôme ####
   diff_ersi_long <- comparaison_entre_periodes_par_diplome %>%
     select(diplome, Sexe, diff_ersi_survie, diff_ersi_sante, diff_ersi_retraite, diff_ersi_residu) %>%
@@ -599,12 +629,32 @@ for(variante in liste_variantes){
   ) %>%
     ggsave(paste0("graphes/diff_ERSI_entre_periodes_par_diplome_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
   
+  (ggplot()+
+      geom_bar(data = filter(diff_ersi_long, diplome %in% c("Supérieur","Bac ou moins","Ensemble")),
+               aes(x = diplome, y=valeur, fill=factor(composant, levels=c("diff_ersi_residu", "diff_ersi_survie","diff_ersi_sante","diff_ersi_retraite"))),
+               position="stack", stat="identity")+
+      labs(caption = legende, x = "Diplôme", y="Années",fill="Espérance de retraite \n sans incapacité, \n évolution entre 2009-2013 \n et 2017-2019")+
+      scale_fill_brewer(breaks=c("diff_ersi_survie","diff_ersi_sante","diff_ersi_retraite","diff_ersi_residu"),
+                        labels=c("expliquée par la mortalité","expliquée par les incapacités","expliquée par la retraite","Résidu"),
+                        palette="YlOrBr", direction=-1)+
+      geom_point(data = filter(comparaison_entre_periodes_par_diplome, diplome %in% c("Supérieur","Bac ou moins","Ensemble")), aes(x = diplome, y = diff_ersi), color="black", size=2)+
+      geom_errorbar(data = filter(comparaison_entre_periodes_par_diplome, diplome %in% c("Supérieur","Bac ou moins","Ensemble")), aes(x = diplome, ymin = diff_ersi_ci_inf, ymax=diff_ersi_ci_sup), color="black", width=0.2)+
+      facet_wrap(~Sexe)
+  ) %>%
+    ggsave(paste0("graphes/diff_ERSI_entre_periodes_par_diplome_agrege_",variante,".png"),plot=., width=largeur*1.2, height=hauteur, unit="cm")
+  
+  
   # Évolution des écarts par diplôme d'ERSI entre périodes
   
   # Écarts entre sexes, décomposition ####
   ev_hommes <- comparaison_entre_sexes %>% filter(Sexe == "Hommes") %>% select(ev) %>% pull()
   
   diff_sexe_long <- comparaison_entre_sexes %>%
+    select(
+      -any_of(
+        names(comparaison_entre_sexes)[endsWith(names(comparaison_entre_sexes), "_ci_inf") | endsWith(names(comparaison_entre_sexes), "_ci_sup") | endsWith(names(comparaison_entre_sexes), "_var")]
+      )
+    ) %>%
     filter(Sexe == "Femmes") %>%
     mutate(diff_ev = ev - ev_hommes) %>% mutate(diff_ev_survie = diff_ev) %>%
     select(starts_with("diff_"), -starts_with("diff_evsif"), -starts_with("diff_ersif"))%>%
