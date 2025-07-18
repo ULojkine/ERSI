@@ -41,7 +41,7 @@ charger_mortalite <- function(critere, sexe, periode_arg){
 # Taux de survie par catégorie agrégée
 agreger_survie <- function(table_survie, critere = "PCS", liste_groupes){
   proportions <- readRDS(paste0("./interm/proportions_",critere,".rds"))
-  t <- table_survie %>%
+  table_survie %>%
     left_join(.,proportions, by = c("periode","Sexe","AGE",critere))%>%
     filter(!!sym(critere) %in% liste_groupes)%>%
     group_by(Sexe, periode, AGE) %>%
@@ -53,6 +53,22 @@ agreger_survie <- function(table_survie, critere = "PCS", liste_groupes){
     ) %>%
     ungroup()%>%
     renormaliser_survie(., Sexe, periode)
+}
+
+# Taux de survie tous sexes confondus
+agreger_survie_entreSexes <- function(table_survie, critere = "PCS"){
+  proportions <- readRDS(paste0("./interm/proportions_",critere,"_parSexe.rds"))
+  table_survie %>%
+    left_join(.,proportions, by = c("periode","Sexe","AGE",critere))%>%
+    group_by(!!sym(critere), periode, AGE) %>%
+    summarise(
+      mortalite = weighted.mean(mortalite, proportion)
+    ) %>%
+    mutate(
+      survie = ifelse(AGE > 30, lag(cumprod(1 - mortalite)), 1)
+    ) %>%
+    ungroup()%>%
+    renormaliser_survie(., !!sym(critere), periode)
 }
 
 
@@ -75,6 +91,12 @@ periodes <- c("2009-2013", "2017-2019")
 survie_PCS <- expand_grid(sexe = sexes, periode = periodes) %>%
   pmap_dfr(~ charger_mortalite("PCS", ..1, ..2))
 
+survie_PCS_tousSexes <- survie_PCS %>%
+  agreger_survie_entreSexes(critere = "PCS") %>%
+  mutate(Sexe = "Ensemble")
+
+survie_PCS <- rbind(survie_PCS, survie_PCS_tousSexes)
+
 survie_diplome <- expand_grid(sexe = sexes, periode = periodes) %>%
   pmap_dfr(~ charger_mortalite("diplome", ..1, ..2)) %>%
   mutate(
@@ -85,32 +107,16 @@ survie_diplome <- expand_grid(sexe = sexes, periode = periodes) %>%
     )
   )
 
+survie_diplome_tousSexes <- survie_diplome %>%
+  agreger_survie_entreSexes(critere = "diplome") %>%
+  mutate(Sexe = "Ensemble")
+
 survie_bacOuMoins <- survie_diplome %>%
   agreger_survie(., "diplome", c("Sans","Brevet","CAP","Bac")) %>%
   mutate(diplome = "Bac ou moins")
 
-survie_diplome <- rbind(survie_diplome, survie_bacOuMoins)
+survie_diplome <- rbind(survie_diplome, survie_diplome_tousSexes, survie_bacOuMoins)
 
-
-# On charge les données de mortalité par genre en série longue
-# Les données INSEE de mortalité par génération viennent d'ici : https://www.insee.fr/fr/statistiques/6543678?sommaire=6543680
-# Elles ont été préalablement converties manuellement en .csv
-survie_SL <- map_dfr(sexes,
-                     ~read_delim(paste0("./data/Mortalité/MortaliteGeneration",substr(.x,1,1),".csv"), 
-                                delim = ";", escape_double = FALSE, locale = locale(decimal_mark = ","),trim_ws = TRUE)%>%
-                       pivot_longer(col=-1, values_to = "mortalite", names_to = "AGE")%>%
-                       mutate(Sexe = .x)
-                     )
-
-survie_SL <- survie_SL %>%
-              mutate(AGE = as.numeric(AGE),
-                     AENQ = birth + AGE) %>% # annee = naissance + age
-              filter(AGE >= 30, AGE <= 100, AENQ >= 2008, AENQ <= 2019) %>%
-              arrange(Sexe, AENQ, AGE) %>% 
-              group_by(AENQ, Sexe) %>%
-              mutate(survie = cumprod(1 - lag(mortalite, default=0)/100000)) %>% # On calcule la survie instantanée
-              renormaliser_survie(., Sexe, AENQ)%>%
-              ungroup()
 
 # Fusion avec les prévalences par variante ####
 # On charge les données de limitations*retraite
@@ -135,12 +141,4 @@ for(variante in liste_variantes){
   
   saveRDS(prevalences_survie_PCS,paste0("interm/prevalences_survie_PCS_",variante,".rds")) # On sauve séparément en RDS pour garder le format factor
   write_csv(prevalences_survie_PCS,paste0("sorties/prevalences_survie_PCS_",variante,".csv"))
-  
-  prevalences_SL <- readRDS(paste0("./interm/prevalences_SL_",variante,".rds"))
-  prevalences_survie_SL <- merge(prevalences_SL,survie_SL,by=c("AENQ","Sexe","AGE"))%>%
-    completer_colonnes %>%
-    arrange(AENQ, Sexe, AGE)
-  
-  saveRDS(prevalences_survie_SL,paste0("interm/prevalences_survie_SL_",variante,".rds"))
-  write_csv(prevalences_survie_SL,paste0("sorties/prevalences_survie_SL",variante,".csv"))
 }

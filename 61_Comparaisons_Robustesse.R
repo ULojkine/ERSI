@@ -1,61 +1,7 @@
-# Importation de nos données
-comparaison_entre_annees <- readRDS("./interm/comparaison_entre_annees_SRCV.rds")
+# Importation des données
 adultes_periodes <- readRDS("./interm/adultes_periodes.rds")
-
-# De données annexes
-evsi_SL_DREES <- read_delim("data/EVSI_par_age_annee_DREES.csv", 
-                            delim = ";", escape_double = FALSE, locale = locale(decimal_mark = ","), 
-                            trim_ws = TRUE)
 vqs <- read_delim("data/VQS/lil-1099.csv/Csv/vqsseniors.csv", 
            delim = ";", escape_double = FALSE, trim_ws = TRUE)
-
-# Comparaison de notre EVSI avec celle publiée par la DREES
-evsi_SL_DREES <- evsi_SL_DREES %>%
-                      rename(
-                        AENQ = `Année`,
-                        AGE = `Âge`,
-                        evsi = `EVSI`,
-                        ev = `EV`
-                      ) %>%
-                      mutate(
-                        Sexe = recode(Sexe,
-                        "homme" = "Hommes",
-                        "femme" = "Femmes"),
-                        source = "DREES"
-                      ) %>%
-                      filter(AGE == 30, AENQ %in% c(2008:2019)) %>%
-                      select(AENQ, Sexe, ev, evsi, source)
-
-evsi_SL_auteurs <- comparaison_entre_annees %>%
-  select(AENQ, Sexe, ev, evsi) %>%
-  mutate(source = "Auteurs",
-         ev = ev,
-         evsi = evsi)
-
-evsi_comparaison <- rbind(
-  evsi_SL_auteurs,
-  evsi_SL_DREES
-) %>%
-  mutate(
-    AENQ = as.numeric(AENQ)
-  ) %>%
-  pivot_longer(cols = c("ev","evsi"), names_to = "variable", values_to = "valeur") %>%
-  arrange(AENQ, Sexe, variable)
-
-(ggplot()+
-  geom_line(data = evsi_comparaison, aes(x = AENQ, y=valeur, color=source, group=source))+
-  facet_grid(variable ~ Sexe, scales="free_y")+
-  scale_y_continuous(breaks=c(30:58))+
-  labs(
-    title="Espérance de vie totale et sans invalidité à 30 ans selon la source",
-    x = "Année",
-    y = "",
-    color = "Source"
-  )+
-  scale_x_continuous(breaks=seq(2008,2019,by=2))+
-  scale_color_brewer(palette="Paired",direction=-1)
-  )%>%
-  ggsave("graphes/evsi_Auteurs_DREES.png",plot=., width=largeur, height=hauteur, unit="cm")
 
 
 ## FIT LINÉAIRE VQS
@@ -146,15 +92,11 @@ employees_agees_grouped <- employees_agees_grouped %>%
   ggsave("graphes/fit_lineaire_employees_SRCV.png",plot=., width=largeur, height=hauteur, unit="cm")
 
 ## Zoom sur les femmes entre 70 et 79 ans ne se déclarant pas retraitées 
-list(c(2008:2010), c(2017:2019)) %>%
-  map(function(x){
-    df <- filter(adultes, AGE %in% c(70:79), AENQ %in% x)
-    femmes <- filter(df, Sexe == "Femmes")
-    hommes <- filter(df, Sexe == "Hommes")
-    print(paste("En ", paste(x, collapse="-"), " :"))
-    print(paste("Hommes non retraités entre 70 et 79 ans : ",
-                1 - weighted.mean(hommes$retraite, hommes$PB040)))
-    print(paste("Femmes non retraitées entre 70 et 79 ans : ",
-                1 - weighted.mean(femmes$retraite, femmes$PB040)))
-    print(paste("Femmes au foyer : ", weighted.mean(femmes$SITUA == 6, femmes$PB040)))
-  })
+adultes_periodes %>%
+  filter(AGE %in% c(70:79)) %>%
+  group_by(periode, Sexe) %>%
+  summarise(
+    non_retraite = 1 - weighted.mean(retraite, PB040, na.rm=T),
+    au_foyer = weighted.mean(SITUA == 6, PB040, na.rm=T)
+  ) %>%
+  View()

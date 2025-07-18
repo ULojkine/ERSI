@@ -1,6 +1,6 @@
 # Factorisation
 # On prépare les niveaux de factorisation
-sexe_levels <- c("Femmes","Hommes")
+sexe_levels <- c("Femmes","Hommes","Ensemble")
 periode_levels <- c("2009-2013","2017-2019")
 pcs_levels <- c("Cadres","Prof inter","Employés","Ouvriers","Ensemble")
 diplome_levels <- c("Supérieur","Bac","CAP","Brevet","Sans","Bac ou moins","Ensemble")
@@ -100,9 +100,6 @@ var_diff_esperance <- function(df, elements1, elements2, nom_colonne){
 }
 
 calcul_esperances <- function(df, elements1, elements2, variante){
-  # elements1 <- elements1[-1] # on enlève la ligne 30 ans dans la somme du calcul de l'espérance
-  # elements2 <- elements2[-1]
-  
   decomp_evsi <- decomposition_EVSI(df, elements1, elements2)
   decomp_evsif <- decomposition_EVSIF(df, elements1, elements2)
   decomp_er <- decomposition_ER(df,elements1,elements2)
@@ -114,6 +111,7 @@ calcul_esperances <- function(df, elements1, elements2, variante){
     ev = sum(df$survie_ap[elements1]), # Calcul de l'EV
     survie60 = df$survie[elements1[60-30+1]],
     evsi = sum(df$survie_non_limite[elements1]), # Calcul de l'EVSI
+    evsi65 = sum(df$survie_non_limite[elements1[(65-29):(100-29)]]),
     evsif = sum(df$survie_non_limite_forte[elements1]),
     survie60_non_limite = df$survie_non_limite[elements1[60-30+1]],
     survie60_non_limite_forte = df$survie_non_limite_forte[elements1[60-30+1]],
@@ -227,8 +225,7 @@ for(variante in liste_variantes){
   }
   
   prevalences_survie_PCS <- readRDS(paste0("./interm/prevalences_survie_PCS_",variante,".rds"))
-  prevalences_survie_SL <- readRDS(paste0("./interm/prevalences_survie_SL_",variante,".rds"))
-  
+
   ## COMPARAISON ENTRE SEXES POUR CHAQUE PÉRIODE
   comparaison_entre_sexes <- expand_grid(sexe = sexe_levels, periode1 = periode_levels) %>%
     pmap_dfr(function(sexe, periode1){
@@ -281,31 +278,16 @@ for(variante in liste_variantes){
     remove_rownames()
   
   
-  ## COMPARAISON ENTRE ANNÉES (SÉRIE LONGUE), PAR SEXE
-  annee_min <- ifelse(variante == "enqEmploi", 2013, 2008) # La série SRCV remonte jusqu'à 2008, mais EE seulement jusqu'à 2013
-  comparaison_entre_annees <- expand_grid(sexe = sexe_levels, annee = c(annee_min:2019)) %>%
-                            pmap_dfr( function(sexe, annee){
-                              p <- prevalences_survie_SL %>% filter(Sexe == sexe)
-                              calcul_esperances(p, which(p$AENQ == annee), which(p$AENQ == annee_min), variante)%>%
-                                mutate(AENQ = annee,
-                                       Sexe = sexe)
-                            }) %>%
-    select(AENQ, Sexe, everything()) %>%
-    factoriser(c("Sexe"))%>%
-    remove_rownames()
-  
   # Export
   saveRDS(comparaison_entre_sexes, paste0("interm/comparaison_entre_sexes_",variante,".rds"))
   saveRDS(comparaison_entre_PCS, paste0("interm/comparaison_entre_PCS_",variante,".rds"))
   saveRDS(comparaison_entre_periodes_par_PCS, paste0("interm/comparaison_entre_periodes_par_PCS_",variante,".rds"))
   saveRDS(comparaison_entre_periodes_par_diplome, paste0("interm/comparaison_entre_periodes_par_diplome_",variante,".rds"))
-  saveRDS(comparaison_entre_annees, paste0("interm/comparaison_entre_annees_",variante,".rds"))
-  saveRDS(diff_diff, paste0("sorties/comparaison_entre_periodes_ecarts_entre_diplomes_",variante,".rds"))
+  saveRDS(diff_diff, paste0("interm/comparaison_entre_periodes_ecarts_entre_diplomes_",variante,".rds"))
   
   write_csv(comparaison_entre_sexes, paste0("sorties/comparaison_entre_sexes_",variante,".csv"))
   write_csv(comparaison_entre_PCS, paste0("sorties/comparaison_entre_PCS_",variante,".csv"))
   write_csv(comparaison_entre_periodes_par_PCS, paste0("sorties/comparaison_entre_periodes_par_PCS_",variante,".csv"))
   write_csv(comparaison_entre_periodes_par_diplome, paste0("sorties/comparaison_entre_periodes_par_diplome_",variante,".csv"))
-  write_csv(comparaison_entre_annees, paste0("sorties/comparaison_entre_annees_",variante,".csv"))
   write_csv(diff_diff, paste0("sorties/comparaison_entre_periodes_ecarts_entre_diplomes_",variante,".csv"))
 }

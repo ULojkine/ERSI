@@ -48,7 +48,7 @@ mise_en_forme <- function(individus){
       retraite_revenu_i_brut = !is.na(RETRAITES_I),
       retraite_revenu_i = retraite_revenu_i_brut | AGE >= 70
     ) %>%
-    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","retraite","retraite_brut","retraite_revenu_i"))
+    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","SITUA","retraite","retraite_brut","retraite_revenu_i"))
 }
 
 # SRCV 
