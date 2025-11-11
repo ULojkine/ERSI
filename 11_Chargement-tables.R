@@ -48,14 +48,14 @@ mise_en_forme <- function(individus){
       retraite_revenu_i_brut = !is.na(RETRAITES_I),
       retraite_revenu_i = retraite_revenu_i_brut | AGE >= 70
     ) %>%
-    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","SITUA","retraite","retraite_brut","retraite_revenu_i"))
+    select(c("AGE","Sexe","PB040","AENQ","limite","limite_forte","PCS","diplome","SITUA","retraite","retraite_brut","retraite_revenu_i","IND"))
 }
 
 # SRCV 
 variables_a_retirer = c("PROPLOCA", "PY200G", "PY021N", "PY021G", "Z01Q0P",
                         "HANDICH", "HANDICG")
 
-variables_a_selectionner <- c("DIM", "AGE", "CS24", "CS_ANTE", "DIP11","DIP14","SEXE", "SITUA", "RETRAITES_I","RRET_a", "PB040")
+variables_a_selectionner <- c("DIM", "AGE", "CS24", "CS_ANTE", "DIP11","DIP14","SEXE", "SITUA", "RETRAITES_I","RRET_a", "PB040", "IND")
 
 individus <- list(
   `2008` = "individus08_diff",
@@ -88,7 +88,7 @@ rm(adultes)
 gc()
 
 # Enquête Emploi
-variables_a_selectionner <- c("LIMACT","AG", "CSE", "CSA", "DIP11", "SEXE", "SP00", "EXTRIDF")
+variables_a_selectionner <- c("LIMACT","AG", "CSE", "CSA", "DIP11", "SEXE", "SP00", "EXTRIDF","IDENT","NOI")
 
 individus <- NULL
 for(a in c(2013:2019)){
@@ -122,6 +122,7 @@ individus <- individus %>%
     PB040 = EXTRIDF
   ) %>%
   mutate(
+    IND = paste0(IDENT, NOI), # on reconstruit un identifiant individuel en accolant l'identifiant logement IDENT et celui de l'individu dans le logement NOI
     DIP14 = NA,
     RETRAITES_I = NA,
     RRET_a = NA

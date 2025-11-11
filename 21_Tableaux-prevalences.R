@@ -20,15 +20,15 @@ prevalences_moyennes_agecat <- function(donnees, ...) {
     ) %>%
     summarise(
       non_limite = weighted_mean_na_rm(!limite, PB040),
-      non_limite_var = weighted_var_na_rm(!limite, PB040),
+      non_limite_var = var_weighted_clustered(!limite, PB040, IND),
       non_limite_forte = weighted_mean_na_rm(!limite_forte, PB040),
-      non_limite_forte_var = weighted_var_na_rm(!limite_forte, PB040),
+      non_limite_forte_var = var_weighted_clustered(!limite_forte, PB040, IND),
       retraite = weighted_mean_na_rm(retraite_indiv, PB040),
-      retraite_var = weighted_var_na_rm(retraite_indiv, PB040),
+      retraite_var = var_weighted_clustered(retraite_indiv, PB040, IND),
       retraite_non_limite = weighted_mean_na_rm(retraite_indiv & !limite, PB040),
-      retraite_non_limite_var = weighted_var_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_var = var_weighted_clustered(retraite_indiv & !limite, PB040, IND),
       retraite_non_limite_forte = weighted_mean_na_rm(retraite_indiv & !limite_forte, PB040),
-      retraite_non_limite_forte_var = weighted_var_na_rm(retraite_indiv & !limite_forte, PB040),
+      retraite_non_limite_forte_var = var_weighted_clustered(retraite_indiv & !limite_forte, PB040, IND),
       non_retraite_non_limite = weighted_mean_na_rm(!retraite_indiv & !limite, PB040),
       non_retraite_limite = weighted_mean_na_rm(!retraite_indiv & limite, PB040),
       non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite_indiv & !limite_forte, PB040),
@@ -36,8 +36,8 @@ prevalences_moyennes_agecat <- function(donnees, ...) {
       non_limite_forte_parmi_retraite = ifelse(retraite == 0, 1, retraite_non_limite_forte/retraite),
       .groups='drop'
     ) %>%
-    uncount(ifelse(agecat_nombre < 85, 5, 16), .id = "id_clone") %>%  # Creates 5 copies with counter
-    mutate(AGE = agecat_nombre + id_clone - 1) %>% 
+    uncount(ifelse(agecat_nombre < 85, 5, 16), .id = "id_clone") %>%  # On crée une ligne par âge détaillée
+    mutate(AGE = agecat_nombre + id_clone - 1) %>% # en imputant à tous les âges détaillés de la même catégorie d'âge le même contenu
     select(-id_clone) %>%
     ungroup()
 }
@@ -90,15 +90,15 @@ prevalences_moyenne_glissante <- function(donnees, age, ...) {
     summarise(
       AGE = age,
       non_limite = weighted_mean_na_rm(!limite, PB040),
-      non_limite_var = weighted_var_na_rm(!limite, PB040),
+      non_limite_var = var_weighted_clustered(!limite, PB040, IND),
       non_limite_forte = weighted_mean_na_rm(!limite_forte, PB040),
-      non_limite_forte_var = weighted_var_na_rm(!limite_forte, PB040),
+      non_limite_forte_var = var_weighted_clustered(!limite_forte, PB040, IND),
       retraite = weighted_mean_na_rm(retraite_indiv, PB040),
-      retraite_var = weighted_var_na_rm(retraite_indiv,PB040),
+      retraite_var = var_weighted_clustered(retraite_indiv,PB040,IND),
       retraite_non_limite = weighted_mean_na_rm(retraite_indiv & !limite, PB040),
-      retraite_non_limite_var = weighted_var_na_rm(retraite_indiv & !limite, PB040),
+      retraite_non_limite_var = var_weighted_clustered(retraite_indiv & !limite, PB040, IND),
       retraite_non_limite_forte = weighted_mean_na_rm(retraite_indiv & !limite_forte, PB040),
-      retraite_non_limite_forte_var = weighted_var_na_rm(retraite_indiv & !limite_forte, PB040),
+      retraite_non_limite_forte_var = var_weighted_clustered(retraite_indiv & !limite_forte, PB040, IND),
       non_retraite_non_limite = weighted_mean_na_rm(!retraite_indiv & !limite, PB040),
       non_retraite_limite = weighted_mean_na_rm(!retraite_indiv & limite, PB040),
       non_retraite_non_limite_forte = weighted_mean_na_rm(!retraite_indiv & !limite_forte, PB040),
@@ -273,13 +273,19 @@ for(variante in liste_variantes[liste_variantes != "SRCV_recensement"]){
     prevalences_PCS_tousSexes <- prevalences_moyennes_agecat(donnees = filter(adultes_periodes, !is.na(PCS), PCS %notin% c(NA, "Inactifs")), PCS, periode) %>%
       mutate(Sexe =  "Ensemble")
     
+    prevalences_ensemble_tousSexes <- prevalences_moyennes_agecat(donnees = adultes_periodes) %>%
+      mutate(PCS = "Ensemble", Sexe="Ensemble")
+    
     prevalences_PCS <- rbind(prevalences_PCS, prevalences_PCS_ensemble, prevalences_PCS_tousSexes) %>%
       arrange(periode, Sexe, PCS, AGE)
     
     # Par diplôme et période
     prevalences_diplome <- prevalences_moyennes_agecat(donnees = adultes_periodes, Sexe, diplome, periode)
+    prevalences_bacOuMoins_tousSexes <- prevalences_moyennes_agecat(donnees = filter(adultes_periodes, diplome != "Supérieur"), periode) %>%
+      mutate(diplome = "Bac ou moins", Sexe = "Ensemble")
     prevalences_diplome_bacOuMoins <- prevalences_moyennes_agecat(donnees = filter(adultes_periodes, diplome != "Supérieur"), Sexe, periode) %>%
-      mutate(diplome = "Bac ou moins")
+      mutate(diplome = "Bac ou moins") %>%
+      rbind(prevalences_bacOuMoins_tousSexes)
     prevalences_diplome_ensemble <- prevalences_moyennes_agecat(donnees = adultes_periodes, Sexe, periode) %>%
       mutate(diplome = "Ensemble")
     prevalences_diplome_tousSexes <- prevalences_moyennes_agecat(donnees = adultes_periodes, diplome, periode) %>%
@@ -299,8 +305,14 @@ for(variante in liste_variantes[liste_variantes != "SRCV_recensement"]){
     ### Proportions des catégories ####
     proportions_PCS <- proportions_agecat(adultes_periodes, critere = "PCS")
     proportions_PCS_parSexe <- proportions_agecat_parSexe(adultes_periodes, critere = "PCS")
-    proportions_diplome <- proportions_agecat(adultes_periodes, critere = "diplome")
-    proportions_diplome_parSexe <- proportions_agecat_parSexe(adultes_periodes, critere = "diplome")
+    proportions_diplome <- proportions_agecat(adultes_periodes, critere = "diplome")$
+    proportions_bacOuMoins_parSexe <- adultes_periodes %>%
+      mutate(diplome = ifelse(diplome == "Supérieur", "Supérieur", "Bac ou moins")) %>%
+      proportions_agecat_parSexe(., critere = "diplome") %>%
+      filter(diplome == "Bac ou moins")
+    proportions_diplome_parSexe <- proportions_agecat_parSexe(adultes_periodes, critere = "diplome") %>%
+      rbind(proportions_bacOuMoins_parSexe)
+    
     
     saveRDS(proportions_PCS, "./interm/proportions_PCS.rds")
     saveRDS(proportions_PCS_parSexe, "./interm/proportions_PCS_parSexe.rds")

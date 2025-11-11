@@ -4,9 +4,9 @@ renormaliser_survie <- function(df, ...){
   df %>%
     group_by(...) %>%
     mutate(
-           mortalite_centrale_99 = mortalite[AGE == 99]/(1 - mortalite[AGE == 99]/2),
-           survie_ageexact = ifelse(AGE < 100, (survie + lead(survie))/2, survie), #on passe de la survie en âge atteint fournie par Blanpain à la survie en âge exact
-           survie_ap = ifelse(AGE < 100, (survie_ageexact + lead(survie_ageexact))/2, survie_ageexact/mortalite_centrale_99) # on passe de la survie en âge exact aux années personne
+      mortalite_centrale_99 = mortalite[AGE == 99]/(1 - mortalite[AGE == 99]/2),
+      survie_ageexact = ifelse((AGE < 100) & (AGE > 30), (survie + lead(survie))/2, survie), #on passe de la survie en âge atteint fournie par Blanpain à la survie en âge exact
+      survie_ap = ifelse(AGE < 100, (survie_ageexact + lead(survie_ageexact))/2, survie_ageexact/mortalite_centrale_99) # on passe de la survie en âge exact aux années personne
     ) %>%
     select(-mortalite_centrale_99)#on réexprime la survie en années-personnes
 }
@@ -14,7 +14,7 @@ renormaliser_survie <- function(df, ...){
 
 # Fonction pour charger un fichier de mortalité
 charger_mortalite <- function(critere, sexe, periode_arg){
- read_delim(paste0("./data/Mortalité/Mortalite-", case_when(critere == "PCS" ~ "CS", critere == "diplome" ~ "diplome"),
+  read_delim(paste0("./data/Mortalité/Mortalite-", case_when(critere == "PCS" ~ "CS", critere == "diplome" ~ "diplome"),
                     "-FE-", substr(sexe,1,1),
                     "-",periode_arg,".csv"),
              delim=";") %>%
@@ -115,7 +115,11 @@ survie_bacOuMoins <- survie_diplome %>%
   agreger_survie(., "diplome", c("Sans","Brevet","CAP","Bac")) %>%
   mutate(diplome = "Bac ou moins")
 
-survie_diplome <- rbind(survie_diplome, survie_diplome_tousSexes, survie_bacOuMoins)
+survie_bacOuMoins_tousSexes <- survie_bacOuMoins %>%
+  agreger_survie_entreSexes(critere = "diplome") %>%
+  mutate(Sexe = "Ensemble")
+
+survie_diplome <- rbind(survie_diplome, survie_diplome_tousSexes, survie_bacOuMoins, survie_bacOuMoins_tousSexes)
 
 
 # Fusion avec les prévalences par variante ####
